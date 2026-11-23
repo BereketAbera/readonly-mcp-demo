@@ -71,7 +71,7 @@ afterAll(async () => {
 describe("tool surface", () => {
   it("negotiates the current protocol and identifies the server", () => {
     expect(client.getServerVersion()?.name).toBe("lakeside-readonly-mcp");
-    expect(client.getServerCapabilities()?.tools).toBeDefined();
+    expect(client.getServerCapabilities()?.tools).toEqual({ listChanged: false });
     expect(client.getServerCapabilities()?.resources).toBeUndefined();
     expect(client.getServerCapabilities()?.prompts).toBeUndefined();
     expect(client.getInstructions()).toMatch(/Read-only access/);
@@ -151,17 +151,24 @@ describe("calling every tool", () => {
     expect(labour.inputs.revenue.netRevenue).toBe(labour.totals.netRevenue);
   });
 
-  it("never returns contact, birth, address, bank or card details", () => {
+  it("never returns contact, birth, address, bank, card or medical details", () => {
     const all = JSON.stringify([...results.values()].map((r) => r.content));
-    for (const needle of ["@", "0491", "+61", "phoneNumber", "email", "Example Street", "BSB", "kioskCode", "dateOfBirth", "creditCard", "pi_", "Nut allergy"]) {
+    for (const needle of ["@", "0491", "+61", "phoneNumber", "email", "Example Street", "BSB", "kioskCode", "dateOfBirth", "creditCard", "pi_", "Nut allergy", "Medical"]) {
       expect(all, needle).not.toContain(needle);
     }
   });
 
-  it("masks contact details found in free-text notes", async () => {
+  it("shows only that a timesheet has a note, not the note itself", async () => {
     const result = await client.callTool({ name: "get_timesheets", arguments: { start: "2026-11-14", end: "2026-11-14" } });
     const text = JSON.stringify(result.structuredContent);
-    expect(text).toContain("Text me on [redacted phone]");
+    expect(text).toContain('"hasNote":true');
+    expect(text).not.toContain("Text me");
+  });
+
+  it("marks every result as mock data", () => {
+    for (const [name, result] of results) {
+      expect(result.structuredContent?.dataSource, name).toBe("mock (fictional demo data)");
+    }
   });
 });
 
@@ -208,6 +215,18 @@ describe("HTTP boundary", () => {
       const res = await fetch(endpoint, { method, headers: { authorization: `Bearer ${TOKEN}`, accept: "text/event-stream" } });
       expect(res.status, method).toBe(405);
     }
+  });
+
+  it("rejects JSON-RPC batches with 400", async () => {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { ...MCP_HEADERS, authorization: `Bearer ${TOKEN}`, "mcp-protocol-version": "2025-11-25" },
+      body: JSON.stringify([
+        { jsonrpc: "2.0", id: 1, method: "tools/list" },
+        { jsonrpc: "2.0", id: 2, method: "tools/list" },
+      ]),
+    });
+    expect(res.status).toBe(400);
   });
 
   it("rejects browser requests from other origins with 403", async () => {

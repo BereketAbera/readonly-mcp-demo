@@ -6,6 +6,7 @@ import { logEvent } from "../core/log";
 import { MemoryRateLimiter, WorkersRateLimiter, type RateLimiter, type WorkersRateLimitBinding } from "../core/rate-limit";
 import type { ToolContext } from "../tools/catalog";
 import type { FetchLike } from "../upstream/http";
+import { SEED_END, SEED_START } from "../mock/seed";
 import { createUpstreams, type Upstreams } from "../upstream/index";
 import { createMcpServer } from "./server";
 
@@ -13,7 +14,8 @@ import { createMcpServer } from "./server";
  * Framework-neutral MCP endpoint: takes a web-standard Request and returns a
  * Response, so the same code serves a Cloudflare Worker and a Next.js route.
  *
- * Order of checks: Origin -> bearer token -> method -> rate limit -> MCP.
+ * Order of checks: Origin -> bearer token -> method -> rate limit -> body
+ * (size, single message) -> MCP.
  */
 
 export interface HandlerOptions {
@@ -41,20 +43,66 @@ function jsonRpcError(status: number, code: number, message: string, headers: Re
   });
 }
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
 /**
- * Browser requests must come from this site (or a configured origin). The host
- * is compared, not the scheme, because TLS often ends at a proxy in front of us.
+ * Browser requests must come from an origin on the configured list (this
+ * site's own origins and ALLOWED_ORIGINS). Request headers such as Host or
+ * X-Forwarded-Host are never trusted for this. The one exception is local
+ * development: a page served from the same loopback address and port. A
+ * DNS-rebinding page always carries the attacker's hostname, never a loopback
+ * name, so it cannot match.
  */
-function isAllowedOrigin(origin: string, request: Request, url: URL, allowed: readonly string[]): boolean {
-  if (allowed.includes(origin)) return true;
-  let originHost: string;
+export function isAllowedOrigin(origin: string, url: URL, allowed: readonly string[]): boolean {
+  let parsed: URL;
   try {
-    originHost = new URL(origin).host;
+    parsed = new URL(origin);
   } catch {
     return false;
   }
-  const hosts = [url.host, request.headers.get("host"), request.headers.get("x-forwarded-host")];
-  return hosts.some((h) => h !== null && h.toLowerCase() === originHost.toLowerCase());
+  if (allowed.includes(parsed.origin)) return true;
+  return LOOPBACK_HOSTS.has(parsed.hostname) && LOOPBACK_HOSTS.has(url.hostname) && parsed.port === url.port;
+}
+
+/** The address the platform says the request came from (set by Cloudflare or Vercel, not the client). */
+function clientAddress(request: Request): string {
+  const h = request.headers;
+  return h.get("cf-connecting-ip") ?? h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+}
+
+/** Reads the body up to `limit` bytes; returns undefined when it is larger. */
+async function readBody(request: Request, limit: number): Promise<string | undefined> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (declared > limit) return undefined;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => undefined);
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function buildRuntime(env: EnvSource, options: HandlerOptions = {}): Promise<Runtime> {
@@ -72,6 +120,9 @@ export async function buildRuntime(env: EnvSource, options: HandlerOptions = {})
     booking: upstreams.booking,
     timezone: config.timezone,
     payRateMinGroupSize: config.payRateMinGroupSize,
+    staffExtraFields: config.staffExtraFields,
+    includeTimesheetNotes: config.includeTimesheetNotes,
+    coverage: config.mode === "mock" ? { start: SEED_START, end: SEED_END } : undefined,
     today: () => localDate(Math.floor((options.now ?? Date.now)() / 1000), config.timezone),
   };
   return { config, tokens, limiter, upstreams, ctx };
@@ -83,7 +134,7 @@ export async function handleWithRuntime(request: Request, rt: Runtime): Promise<
 
   // #region request-gate
   const origin = request.headers.get("origin");
-  if (origin && !isAllowedOrigin(origin, request, url, rt.config.allowedOrigins)) {
+  if (origin && !isAllowedOrigin(origin, url, rt.config.allowedOrigins)) {
     logEvent("origin_rejected", { method: request.method });
     return jsonRpcError(403, -32000, "Origin not allowed");
   }
@@ -103,12 +154,24 @@ export async function handleWithRuntime(request: Request, rt: Runtime): Promise<
     });
   }
 
-  const decision = await rt.limiter.check(auth.tokenId);
+  // A secret token is one connector's quota. The shared public demo token is
+  // limited per visitor as well, so one visitor cannot use it up for everyone.
+  const limitKey = auth.kind === "public-demo" ? `${auth.tokenId}:${clientAddress(request)}` : auth.tokenId;
+  const decision = await rt.limiter.check(limitKey);
   if (!decision.allowed) {
     logEvent("rate_limited", { token: auth.tokenId });
     return jsonRpcError(429, -32000, "Rate limit exceeded for this token", {
       "retry-after": String(decision.retryAfter),
     });
+  }
+
+  const body = await readBody(request, MAX_BODY_BYTES);
+  if (body === undefined) return jsonRpcError(413, -32000, "Request body is larger than 64 KB");
+  // JSON-RPC batches were removed from MCP in 2025-06-18. One message per POST
+  // also means the rate limit above counts every tool call.
+  if (Array.isArray(parseJson(body))) {
+    logEvent("batch_rejected", { token: auth.tokenId });
+    return jsonRpcError(400, -32600, "Batch requests are not supported. Send one JSON-RPC message per POST.");
   }
   // #endregion request-gate
 
@@ -120,7 +183,9 @@ export async function handleWithRuntime(request: Request, rt: Runtime): Promise<
   });
   try {
     await server.connect(transport);
-    const response = await transport.handleRequest(request);
+    const forwarded = new Headers(request.headers);
+    forwarded.delete("content-length");
+    const response = await transport.handleRequest(new Request(request.url, { method: "POST", headers: forwarded, body }));
     const headers = new Headers(response.headers);
     headers.set("cache-control", "no-store");
     headers.set("x-content-type-options", "nosniff");
@@ -155,7 +220,13 @@ const ENV_KEYS = [
   "MCP_PUBLIC_DEMO_TOKEN",
   "RATE_LIMIT_PER_MINUTE",
   "ALLOWED_ORIGINS",
+  "NEXT_PUBLIC_SITE_URL",
+  "VERCEL_PROJECT_PRODUCTION_URL",
+  "VERCEL_URL",
+  "VERCEL_BRANCH_URL",
   "PAY_RATE_MIN_GROUP",
+  "STAFF_EXTRA_FIELDS",
+  "INCLUDE_TIMESHEET_NOTES",
   "CONNECTEAM_API_BASE",
   "CONNECTEAM_TOKEN_URL",
   "CONNECTEAM_CLIENT_ID",

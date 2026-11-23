@@ -4,13 +4,19 @@ import { isShareableCustomField } from "../core/redact";
 import type { BookingApi, RlProduct } from "../upstream/booking";
 import type { CtUser, WorkforceApi } from "../upstream/workforce";
 import { computeLabourCost, hourlyRateFor, workedShifts, type DailyRevenue } from "./labour";
-import { rangeInput } from "./schemas";
+import { isoDate, rangeInput } from "./schemas";
 
 export interface ToolContext {
   workforce: WorkforceApi;
   booking: BookingApi;
   timezone: string;
   payRateMinGroupSize: number;
+  /** Connecteam custom fields list_staff may return, besides Department and Employment type. */
+  staffExtraFields: readonly string[];
+  /** Whether get_timesheets returns (masked) note text instead of only `hasNote`. */
+  includeTimesheetNotes: boolean;
+  /** Dates the mocked data covers; absent against the live APIs. */
+  coverage?: { start: string; end: string };
   /** Venue-local date today (YYYY-MM-DD). */
   today(): string;
 }
@@ -61,6 +67,20 @@ function matchesDepartment(filter: string | undefined, department: string): bool
   return !filter || department.toLowerCase() === filter.trim().toLowerCase();
 }
 
+/** A note for an empty result, saying when the dates fall outside the demo data. */
+function emptyNote(ctx: ToolContext, what: string, start: string, end: string): { note: string } {
+  const c = ctx.coverage;
+  const outside = c ? end < c.start || start > c.end : false;
+  return {
+    note: c && outside ? `No ${what} between ${start} and ${end}. The demo data covers ${c.start} to ${c.end}.` : `No ${what} between ${start} and ${end}.`,
+  };
+}
+
+/** Totals keyed by data values (methods, departments, categories) become arrays, so redaction only ever sees field names. */
+function tally<K extends string, T extends Record<string, number>>(keyName: K, map: Map<string, T>): Array<Record<K, string> & T> {
+  return [...map.entries()].map(([key, totals]) => ({ [keyName]: key, ...totals }) as Record<K, string> & T);
+}
+
 function capped<T>(rows: T[]) {
   const truncated = rows.length > MAX_ROWS;
   return {
@@ -94,31 +114,40 @@ export const TOOLS: ToolDefinition[] = [
     name: "list_staff",
     title: "List staff",
     description:
-      "List staff members with department, role, employment type and status. Phone numbers, email addresses, dates of birth, home addresses, bank details and kiosk PINs are never returned.",
+      "List staff members with department, role, employment type and status, plus active staff per department. Phone numbers, email addresses, dates of birth, home addresses, bank details and kiosk PINs are never returned, and other custom fields only when the deployment allows them by name.",
     input: z.object({
       includeArchived: z.boolean().optional().describe("Include archived (former) staff. Defaults to false."),
     }),
     upstream: [{ api: "workforce", endpoint: "GET /users/v1/users" }],
     async run({ includeArchived }, ctx) {
       const users = await ctx.workforce.listUsers(Boolean(includeArchived));
+      // Allowlist: only custom fields the deployment names, and never one whose type or name marks it personal.
+      const allowed = new Set(ctx.staffExtraFields.map((f) => f.toLowerCase()));
       const staff = users
-        .map((u) => ({
-          userId: u.userId,
-          name: fullName(u, u.userId),
-          department: customField(u, "Department") ?? "Unassigned",
-          role: u.userType,
-          employmentType: customField(u, "Employment type") ?? null,
-          status: u.isArchived ? "archived" : "active",
-          otherFields: Object.fromEntries(
-            u.customFields
-              .filter((f) => !["Department", "Employment type"].includes(f.name) && isShareableCustomField(f))
-              .map((f) => [f.name, f.value]),
-          ),
-        }))
+        .map((u) => {
+          const extraFields = u.customFields
+            .filter((f) => allowed.has(f.name.toLowerCase()) && isShareableCustomField(f))
+            .filter((f) => ["string", "number", "boolean"].includes(typeof f.value))
+            .map((f) => ({ field: f.name, value: f.value as string | number | boolean }));
+          return {
+            userId: u.userId,
+            name: fullName(u, u.userId),
+            department: customField(u, "Department") ?? "Unassigned",
+            role: u.userType,
+            employmentType: customField(u, "Employment type") ?? null,
+            status: u.isArchived ? "archived" : "active",
+            ...(extraFields.length ? { extraFields } : {}),
+          };
+        })
         .sort((a, b) => a.department.localeCompare(b.department) || a.name.localeCompare(b.name));
-      const byDepartment: Record<string, number> = {};
-      for (const s of staff) if (s.status === "active") byDepartment[s.department] = (byDepartment[s.department] ?? 0) + 1;
-      return { count: staff.length, activeByDepartment: byDepartment, staff };
+      const active = new Map<string, { staff: number }>();
+      for (const s of staff) {
+        if (s.status !== "active") continue;
+        const d = active.get(s.department) ?? { staff: 0 };
+        d.staff += 1;
+        active.set(s.department, d);
+      }
+      return { count: staff.length, activeByDepartment: tally("department", active), staff };
     },
   }),
 
@@ -158,20 +187,22 @@ export const TOOLS: ToolDefinition[] = [
         }
       }
       rows.sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
-      const byDepartment: Record<string, { shifts: number; hours: number }> = {};
+      const departments = new Map<string, { shifts: number; hours: number }>();
       for (const r of rows) {
-        const d = (byDepartment[r.department] ??= { shifts: 0, hours: 0 });
+        const d = departments.get(r.department) ?? { shifts: 0, hours: 0 };
         d.shifts += 1;
         d.hours = round2(d.hours + r.scheduledHours);
+        departments.set(r.department, d);
       }
       const { rows: shifts, ...page } = capped(rows);
       return {
         range: { start, end, timezone: ctx.timezone },
         shiftCount: rows.length,
         scheduledHours: round2(rows.reduce((s, r) => s + r.scheduledHours, 0)),
-        byDepartment,
+        byDepartment: tally("department", departments),
         shifts,
         ...page,
+        ...(rows.length === 0 ? emptyNote(ctx, "rostered shifts", start, end) : {}),
       };
     },
   }),
@@ -179,7 +210,7 @@ export const TOOLS: ToolDefinition[] = [
   defineTool({
     name: "get_timesheets",
     title: "Get timesheets",
-    description: `Clocked shifts (timesheets) between two dates: clock-in and clock-out times, unpaid break minutes and paid hours per staff member and department. ${RANGE_NOTE}`,
+    description: `Clocked shifts (timesheets) between two dates: clock-in and clock-out times, unpaid break minutes and paid hours per staff member and department. Shift notes are shown as hasNote only, unless the deployment turns note text on. ${RANGE_NOTE}`,
     input: rangeInput({ department: departmentFilter }),
     upstream: [
       { api: "workforce", endpoint: "GET /time-clock/v1/time-clocks" },
@@ -206,30 +237,37 @@ export const TOOLS: ToolDefinition[] = [
         unpaidBreakMinutes: Math.round(w.unpaidBreakSeconds / 60),
         paidHours: round2(w.paidSeconds / 3600),
         rostered: w.scheduledShiftId !== null,
-        note: w.note || undefined,
+        // Notes are free text (sick-leave reasons, phone numbers), so by default only their presence is shown.
+        ...(w.note ? (ctx.includeTimesheetNotes ? { hasNote: true, note: w.note } : { hasNote: true }) : {}),
       }));
-      const byDepartment: Record<string, number> = {};
-      for (const r of rows) byDepartment[r.department] = round2((byDepartment[r.department] ?? 0) + r.paidHours);
+      const departments = new Map<string, { entries: number; paidHours: number }>();
+      for (const r of rows) {
+        const d = departments.get(r.department) ?? { entries: 0, paidHours: 0 };
+        d.entries += 1;
+        d.paidHours = round2(d.paidHours + r.paidHours);
+        departments.set(r.department, d);
+      }
       const { rows: entries, ...page } = capped(rows);
       return {
         range: { start, end, timezone: ctx.timezone },
         entryCount: rows.length,
         paidHours: round2(rows.reduce((s, r) => s + r.paidHours, 0)),
         unrosteredEntries: rows.filter((r) => !r.rostered).length,
-        paidHoursByDepartment: byDepartment,
+        byDepartment: tally("department", departments),
         entries,
         ...page,
+        ...(rows.length === 0 ? emptyNote(ctx, "timesheet entries", start, end) : {}),
       };
     },
   }),
 
   defineTool({
     name: "get_pay_rates",
-    title: "Get pay rates (aggregated)",
+    title: "Get pay rates (department averages)",
     description:
-      "Hourly pay rates aggregated by department: staff count, minimum, median, maximum and average. Individual rates and bank details are never returned, and departments with too few staff to stay anonymous are withheld.",
+      "Average hourly pay rate per department, with the number of rated positions. No individual rates, minimums or maximums are returned, and departments with fewer rated positions than the configured minimum are withheld. Bank details are never returned.",
     input: z.object({
-      asOf: z.iso.date().optional().describe("Date the rates apply on, YYYY-MM-DD. Defaults to today (venue-local)."),
+      asOf: isoDate("Date the rates apply on, YYYY-MM-DD. Defaults to today (venue-local).").optional(),
     }),
     upstream: [
       { api: "workforce", endpoint: "GET /pay-rates/v1/pay-rates" },
@@ -254,30 +292,20 @@ export const TOOLS: ToolDefinition[] = [
         }
       }
       const minGroup = ctx.payRateMinGroupSize;
-      const summarise = (values: number[]) => {
-        const sorted = [...values].sort((a, b) => a - b);
-        const mid = Math.floor(sorted.length / 2);
-        const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-        return {
-          min: sorted[0],
-          median: round2(median),
-          max: sorted[sorted.length - 1],
-          average: round2(sorted.reduce((s, v) => s + v, 0) / sorted.length),
-        };
-      };
+      // Only the average leaves the server: a minimum, maximum or median is always one real person's rate.
       const departments = [...buckets.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([department, values]) =>
           values.length < minGroup
             ? { department, ratedPositions: values.length, withheld: true }
-            : { department, ratedPositions: values.length, ...summarise(values) },
+            : { department, ratedPositions: values.length, averageRate: round2(values.reduce((s, v) => s + v, 0) / values.length) },
         );
       return {
         asOf: date,
         currency: "AUD",
         rateType: "hourly, before penalty rates and on-costs",
         departments,
-        note: `Figures are withheld for departments with fewer than ${minGroup} rated positions. A person rated for two jobs counts once in each.`,
+        note: `Averages are withheld for departments with fewer than ${minGroup} rated positions. A person rated for two jobs counts once in each.`,
       };
     },
   }),
@@ -285,7 +313,7 @@ export const TOOLS: ToolDefinition[] = [
   defineTool({
     name: "list_bookings",
     title: "List bookings",
-    description: `Bookings with a visit date between two dates: reference, visit date and session time, payment status, total and items. Guest names, contact details and guest flag comments are not returned. ${RANGE_NOTE}`,
+    description: `Bookings with a visit date between two dates: reference, visit date and session time, payment status, total and items, with totals by status and by product category. Guest names, contact details, medical flags and flag comments are not returned. ${RANGE_NOTE}`,
     input: rangeInput({}),
     upstream: [
       { api: "booking", endpoint: "GET /bookings?date={date} (one call per day)" },
@@ -294,7 +322,7 @@ export const TOOLS: ToolDefinition[] = [
     async run({ start, end }, ctx) {
       const products = await productIndex(ctx);
       const rows = [];
-      const itemsByCategory: Record<string, number> = {};
+      const categories = new Map<string, { items: number }>();
       const daysAtSearchLimit: string[] = [];
       for (const date of eachDate(start, end)) {
         const bookings = await ctx.booking.searchBookings(date);
@@ -309,26 +337,34 @@ export const TOOLS: ToolDefinition[] = [
             items: b.items
               .map((i) => `${i.quantity} x ${products.get(String(i.productId))?.name ?? `product ${i.productId}`}`)
               .join("; "),
-            guestFlags: b.customerFlags.map((f) => f.type),
+            // Medical flags are health information: never returned. Comments are never returned either.
+            guestFlags: b.customerFlags.filter((f) => f.type !== "Medical").map((f) => f.type),
           });
           for (const i of b.items) {
             const category = products.get(String(i.productId))?.reportingCategoryName ?? "Other";
-            itemsByCategory[category] = (itemsByCategory[category] ?? 0) + i.quantity;
+            const c = categories.get(category) ?? { items: 0 };
+            c.items += i.quantity;
+            categories.set(category, c);
           }
         }
       }
       rows.sort((a, b) => (a.visitDate + (a.sessionTime ?? "")).localeCompare(b.visitDate + (b.sessionTime ?? "")));
-      const byStatus: Record<string, number> = {};
-      for (const r of rows) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+      const statuses = new Map<string, { bookings: number }>();
+      for (const r of rows) {
+        const st = statuses.get(r.status) ?? { bookings: 0 };
+        st.bookings += 1;
+        statuses.set(r.status, st);
+      }
       const { rows: bookings, ...page } = capped(rows);
       return {
         range: { start, end, timezone: ctx.timezone },
         bookingCount: rows.length,
         bookingValue: money(rows.reduce((s, r) => s + cents(r.total), 0)),
-        byStatus,
-        itemsByCategory,
+        byStatus: tally("status", statuses),
+        itemsByCategory: tally("category", categories).sort((a, b) => b.items - a.items),
         bookings,
         ...page,
+        ...(rows.length === 0 ? emptyNote(ctx, "bookings", start, end) : {}),
         ...(daysAtSearchLimit.length ? { warning: `Search returned its 100-booking limit on ${daysAtSearchLimit.join(", ")}.` } : {}),
       };
     },
@@ -340,7 +376,7 @@ export const TOOLS: ToolDefinition[] = [
     description:
       "Products the venue sells (passes, attractions, party packages, café and arcade cards) with type, reporting category, price including GST and status.",
     input: z.object({
-      category: z.string().min(1).max(60).optional().describe("Optional reporting category, e.g. Admissions, Parties, Café."),
+      category: z.string().min(1).max(60).optional().describe("Optional reporting category, e.g. Admissions, Birthday parties, Café."),
       includeInactive: z.boolean().optional().describe("Include closed and archived products. Defaults to false."),
     }),
     upstream: [{ api: "booking", endpoint: "GET /data/products" }],
@@ -386,11 +422,12 @@ export const TOOLS: ToolDefinition[] = [
         }
       }
       rows.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-      const byMethod: Record<string, { count: number; amount: number }> = {};
+      const methods = new Map<string, { count: number; amount: number }>();
       for (const r of rows) {
-        const m = (byMethod[r.method] ??= { count: 0, amount: 0 });
+        const m = methods.get(r.method) ?? { count: 0, amount: 0 };
         m.count += 1;
         m.amount = money(cents(m.amount) + cents(r.amount));
+        methods.set(r.method, m);
       }
       const { rows: payments, ...page } = capped(rows);
       return {
@@ -399,9 +436,10 @@ export const TOOLS: ToolDefinition[] = [
         totalTaken: money(rows.reduce((s, r) => s + cents(r.amount), 0)),
         tips: money(rows.reduce((s, r) => s + cents(r.tip), 0)),
         fees: money(rows.reduce((s, r) => s + cents(r.fee), 0)),
-        byMethod,
+        byMethod: tally("method", methods).sort((a, b) => b.amount - a.amount),
         payments,
         ...page,
+        ...(rows.length === 0 ? emptyNote(ctx, "payments", start, end) : {}),
       };
     },
   }),
@@ -467,6 +505,7 @@ export const TOOLS: ToolDefinition[] = [
         },
         groupBy,
         rows,
+        ...(totals.entries === 0 ? emptyNote(ctx, "revenue entries", start, end) : {}),
       };
     },
   }),
@@ -474,7 +513,7 @@ export const TOOLS: ToolDefinition[] = [
   defineTool({
     name: "labour_cost_percent",
     title: "Labour cost as % of revenue",
-    description: `Labour cost as a percentage of net revenue between two dates, grouped by day, week or department. Labour cost = paid hours from timesheets x each person's hourly rate for the job worked (plus an optional on-cost %, e.g. 12 for superannuation). Revenue = recognised net revenue excluding GST. The result includes the inputs used. ${RANGE_NOTE}`,
+    description: `Labour cost as a percentage of net revenue between two dates, grouped by day, week or department. Labour cost = paid hours from timesheets × each person's base hourly rate for the job worked, plus an optional on-cost % (for example 12 for superannuation; 0 by default, so wages only). Revenue = recognised net revenue excluding GST. The result includes the inputs used. ${RANGE_NOTE}`,
     input: rangeInput({
       groupBy: z.enum(["day", "week", "department"]).optional().describe("How to group rows. Defaults to week."),
       onCostPercent: z
@@ -482,9 +521,10 @@ export const TOOLS: ToolDefinition[] = [
         .min(0)
         .max(50)
         .optional()
-        .describe("Optional on-cost added to wages, as a percentage (for example 12 for superannuation). Defaults to 0."),
+        .describe("Optional on-cost added to wages, as a percentage (for example 12 for superannuation). Defaults to 0, wages only."),
     }),
     upstream: [
+      { api: "workforce", endpoint: "GET /time-clock/v1/time-clocks" },
       { api: "workforce", endpoint: "GET /time-clock/v1/time-clocks/{timeClockId}/time-activities" },
       { api: "workforce", endpoint: "GET /pay-rates/v1/pay-rates" },
       { api: "workforce", endpoint: "GET /jobs/v1/jobs" },
@@ -536,13 +576,17 @@ export const TOOLS: ToolDefinition[] = [
           },
           labourByDepartment: result.byDepartment,
         },
-        formula: "labourPercent = sum(paid hours x hourly rate x (1 + onCost%)) / sum(net revenue) x 100",
+        formula: "labourPercent = sum(paid hours × hourly rate × (1 + onCost%)) / sum(net revenue) × 100",
         assumptions: [
           "Award penalty rates, overtime and allowances are not applied; rates are base hourly rates.",
+          onCostPercent > 0 ? `An on-cost of ${onCostPercent}% is added to every shift.` : "Wages only: superannuation and other on-costs are not added (set onCostPercent, e.g. 12).",
           "Unpaid manual breaks are deducted from clocked time.",
           "Department rows divide each department's labour cost by total venue revenue for the period.",
         ],
-        warnings: result.warnings,
+        warnings:
+          result.counts.shiftsCounted === 0 && result.counts.revenueEntries === 0
+            ? [...result.warnings, emptyNote(ctx, "timesheets or revenue", start, end).note]
+            : result.warnings,
       };
     },
   }),

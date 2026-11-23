@@ -4,7 +4,7 @@ import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/sdk/validatio
 import type { UpstreamMode } from "../core/config";
 import { MAX_RANGE_DAYS } from "../core/dates";
 import { logEvent } from "../core/log";
-import { redactDeep } from "../core/redact";
+import { newReport, redactDeep } from "../core/redact";
 import { SEED_END, SEED_START, VENUE_NAME } from "../mock/seed";
 import { TOOLS, type ToolContext, type ToolDefinition } from "../tools/catalog";
 import { UpstreamAuthError, UpstreamHttpError, UpstreamPolicyError } from "../upstream/http";
@@ -17,14 +17,19 @@ export const SERVER_INFO = {
 
 export function serverInstructions(mode: UpstreamMode, timezone: string): string {
   return [
-    `Read-only access to workforce data (staff, rosters, timesheets, pay rates) and booking data (bookings, products, payments, revenue) for ${VENUE_NAME}, a single-venue entertainment business.`,
-    `Dates are venue-local (${timezone}) in YYYY-MM-DD form; ranges are inclusive and limited to ${MAX_RANGE_DAYS} days per call. Amounts are AUD.`,
-    "Phone numbers, email addresses, home addresses, dates of birth and bank or card details are never returned.",
-    mode === "mock" ? `This is a demo with mocked upstream APIs and fictional data covering ${SEED_START} to ${SEED_END}.` : "",
+    `Read-only access to Connecteam workforce data (staff, rosters, timesheets, pay rates) and ROLLER booking data (bookings, products, payments, revenue) for ${VENUE_NAME}, a single-venue entertainment business.`,
+    `Dates are venue-local (${timezone}) in YYYY-MM-DD form; ranges are inclusive and limited to ${MAX_RANGE_DAYS} days per call, so split longer periods into several calls. Amounts are AUD.`,
+    "Phone numbers, email addresses, home addresses, dates of birth, bank, card, tax file and Medicare numbers, and medical guest flags are never returned.",
+    mode === "mock"
+      ? `This is a demo with mocked upstream APIs and fictional data covering ${SEED_START} to ${SEED_END}; every result carries dataSource "mock (fictional demo data)".`
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
 }
+
+/** Marks every result, so an assistant can never present the fictional data as a real venue's figures. */
+export const DATA_SOURCE: Record<UpstreamMode, string> = { mock: "mock (fictional demo data)", live: "live" };
 
 function publicMessage(error: unknown): string {
   if (error instanceof UpstreamHttpError) return `${error.message}. Please try again shortly.`;
@@ -33,12 +38,23 @@ function publicMessage(error: unknown): string {
   return "The tool failed unexpectedly. The failure was logged without request data.";
 }
 
-async function runTool(tool: ToolDefinition, args: unknown, ctx: ToolContext, tokenId?: string): Promise<CallToolResult> {
+async function runTool(
+  tool: ToolDefinition,
+  args: unknown,
+  ctx: ToolContext,
+  mode: UpstreamMode,
+  tokenId?: string,
+): Promise<CallToolResult> {
   const started = Date.now();
   const range = args as { start?: unknown; end?: unknown };
   try {
     const raw = await tool.run(args, ctx);
-    const safe = redactDeep(raw);
+    const report = newReport();
+    const safe = { dataSource: DATA_SOURCE[mode], ...redactDeep(raw, report) };
+    if (report.removedKeys > 0) {
+      // Tool outputs are built from named fields, so this should never happen; log it so it gets looked at.
+      logEvent("redaction_removed_keys", { tool: tool.name, count: report.removedKeys });
+    }
     logEvent("tool_call", {
       tool: tool.name,
       ok: true,
@@ -88,9 +104,11 @@ export function createMcpServer(
         inputSchema: tool.input,
         annotations: { title: tool.title, ...READ_ONLY_ANNOTATIONS },
       },
-      (args: unknown) => runTool(tool, args, ctx, options.tokenId),
+      (args: unknown) => runTool(tool, args, ctx, options.mode, options.tokenId),
     );
   }
+  // registerTool() advertises listChanged: true; this tool list never changes, so say so.
+  server.server.registerCapabilities({ tools: { listChanged: false } });
   return server;
 }
 // #endregion tool-registration
