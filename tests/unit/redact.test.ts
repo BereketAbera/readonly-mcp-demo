@@ -24,12 +24,27 @@ describe("key-based redaction", () => {
   });
 
   it("recognises sensitive key spellings and leaves ordinary keys alone", () => {
-    for (const key of ["phone", "mobile_phone", "Email", "email_address", "home_address", "DOB", "birthDate", "BSB", "tfn", "bank_details", "cardNumber"]) {
+    for (const key of ["phone", "mobile_phone", "Email", "email_address", "home_address", "DOB", "birthDate", "BSB", "tfn", "bank_details", "cardNumber", "medicareNumber"]) {
       expect(isSensitiveKey(key), key).toBe(true);
     }
-    for (const key of ["name", "department", "total", "bookingReference", "date", "status", "paymentId", "tip"]) {
+    for (const key of ["name", "department", "total", "bookingReference", "date", "status", "paymentId", "tip", "method", "category"]) {
       expect(isSensitiveKey(key), key).toBe(false);
     }
+  });
+
+  it("keeps data values that look like sensitive key names, because aggregates are arrays", () => {
+    // "Credit card" or "Birthday parties" as object keys would be dropped; as values they must survive.
+    const result = {
+      byMethod: [
+        { method: "Credit card", count: 4, amount: 415.5 },
+        { method: "Mobile app", count: 1, amount: 20 },
+      ],
+      itemsByCategory: [{ category: "Birthday parties", items: 25 }],
+      byDepartment: [{ department: "Phone bookings", shifts: 2, hours: 12 }],
+    };
+    const report = newReport();
+    expect(redactDeep(result, report)).toEqual(result);
+    expect(report.removedKeys).toBe(0);
   });
 });
 
@@ -41,6 +56,12 @@ describe("free-text masking", () => {
     ["UK contact +44 20 7946 0958", "UK contact [redacted phone]"],
     ["Email a.parent@example.com please", "Email [redacted email] please"],
     ["Pay into BSB 012-345 acc 12345678", "Pay into [redacted bank details] [redacted bank details]"],
+    ["BSB 012-345 acct 12345678", "[redacted bank details] [redacted bank details]"],
+    ["Call 0491.570.156 after 5", "Call [redacted phone] after 5"],
+    ["Write to jane.doe[at]example.com", "Write to [redacted email]"],
+    ["Write to jane (at) example (dot) com", "Write to [redacted email]"],
+    ["My TFN is 123 456 782", "My [redacted tax file number]"],
+    ["Medicare 2123 45670 1 on file", "[redacted Medicare number] on file"],
   ])("masks %s", (input, expected) => {
     expect(maskText(input)).toBe(expected);
   });
@@ -57,6 +78,12 @@ describe("free-text masking", () => {
 });
 
 describe("workforce custom fields", () => {
+  it("refuses personal fields even when a deployment names them", () => {
+    for (const name of ["Medicare number", "Superannuation member number", "Working with children check", "Blue card", "Allergies", "Gender", "Tax file number", "Visa expiry"]) {
+      expect(isShareableCustomField({ name, type: "str" }), name).toBe(false);
+    }
+  });
+
   it("hides fields by type and by name", () => {
     expect(isShareableCustomField({ name: "Uniform size", type: "str" })).toBe(true);
     expect(isShareableCustomField({ name: "Department", type: "str" })).toBe(true);
