@@ -9,16 +9,20 @@ colours, the Geist type and the cards were already this demo's own and stay as t
 - **What:** a drawn diagram in place of the five icon cards that listed the request order. Data runs one way, from
   Connecteam and ROLLER to ClickUp. Two red stops show where every write is stopped (the GET-only client) and where
   personal details are removed (the tools). A green box lists what does reach ClickUp. Numbered dots place the nine
-  checks from How it works on the path, and a line under the diagram links there.
-- **Where:** `/`, section "One-way data path" (`src/components/one-way-path.tsx`, drawings in
-  `src/components/diagrams/`). A wide layout from 1024 px up, a tall one below that.
-- **Why:** the job post asks for "strictly read-only" and "secure", and its third screening question asks how the
-  server can't modify or leak data. The site already answered in words. Now the owner gets the same answer as one
-  picture, including what does leave the server. The old cards (a robot, a lock, a wrench) were the most
-  template-looking block on the page, and they showed the order of a request rather than what is stopped.
+  checks from How it works on the path, and the line below the diagram (beside it on tablets) links there.
+- **Where:** `/`, section "One-way data path", straight after the mock-data notice (`src/components/one-way-path.tsx`,
+  drawings in `src/components/diagrams/`). Placed there so it comes first after the hero and that notice instead of
+  fourth, and no longer sits right above the list that makes the same points in words. The wide layout shows from
+  1152 px, the width at which it is drawn 1:1, so its small numbers are never scaled down. Below that the tall one
+  shows, and from 768 px the heading, intro and link line sit beside it, so it doesn't float in an empty column.
+- **Why:** the brief asks for a server that is "strictly read-only" and "secure", and asks how it can't modify or
+  leak data. The site already answered in words. Now the owner gets the same answer as one picture, including what
+  does leave the server. The old cards (a robot, a lock, a wrench) were the most template-looking block on the page,
+  and they showed the order of a request rather than what is stopped.
 - **Notes:** the SVGs are inlined, not loaded as images, so their text is set in the page's Geist, stays sharp at any
   zoom and adds about 6.5 KB each. Screen readers skip the drawing and read the figure caption, which describes the
-  same path in words, check numbers included.
+  same path in words, check numbers included. A number in a dot always means a check, so counts are spelled out
+  ("Nine read-only tools") and the 9 dot leads the sources' "MOCKED IN THIS DEMO" label instead of following it.
 
 ## 2. A mark of its own
 
@@ -29,9 +33,8 @@ colours, the Geist type and the cards were already this demo's own and stay as t
   heavier cut on a white tile so it still shows on dark tab bars); the Apple touch icon (`src/app/apple-icon.png`);
   and the social preview (`src/app/opengraph-image.png`, with its alt text in `opengraph-image.alt.txt`).
 - **Why:** the old logo was a stock shield and tick in a blue square, the default picture for any security app. It
-  sat top-left on every page and in all three screenshots attached to the proposal. The new mark draws this server's
-  promise: two systems in, one way out, nothing back. The dots keep it from reading as a media "next" button at
-  16 px.
+  sat top-left on every page and in every screenshot of the demo. The new mark draws this server's promise: two
+  systems in, one way out, nothing back. The dots keep it from reading as a media "next" button at 16 px.
 - **Social preview:** the old image was drawn at build time without a font, so it fell back to the renderer's
   default typeface and lost every bold weight. It is now a PNG from the same script, with the mark, the headline in
   Geist Bold and the demo's 30.8% labour figure. That figure is fixed in `design/build.sh`;
@@ -45,8 +48,10 @@ colours, the Geist type and the cards were already this demo's own and stay as t
   the two answer boxes on How it works.
 - **Why:** an icon in a tinted square beside every item is a stock feature-list pattern, and each one only repeated
   its bold line (a crossed-out eye beside "details removed"). With the mark and the diagram in place, these were
-  the only generic pictures left. Icons that carry meaning stay: the mock-data notice, the Copy and Run buttons, the
-  hero badges and the readOnlyHint badges on Tools.
+  the only generic pictures left. The icons that stay each carry meaning: the flask on the mock-data notice, the
+  cloud beside the hosting note and the calendar on the date line (overview), the scale and gauge beside the two
+  caveats on Labour cost, and the icons inside controls: Copy, Run, the run panel's status icons, the arrows on the
+  "Run the tools" and 404 page buttons, and the chevron that opens a code excerpt.
 
 ## Copy
 
