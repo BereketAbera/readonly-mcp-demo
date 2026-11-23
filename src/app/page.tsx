@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Ban, CalendarRange, Cloud, EyeOff, KeyRound, ListChecks, MessageSquareText, Wallet } from "lucide-react";
+import { ArrowRight, CalendarRange, Cloud } from "lucide-react";
 import { MockNotice } from "@/components/mock-notice";
 import { OneWayPath } from "@/components/one-way-path";
 import { Stat } from "@/components/stat";
@@ -15,27 +15,22 @@ export const dynamic = "force-static";
 
 const GUARANTEES = [
   {
-    icon: ListChecks,
     title: "Nine tools, none that write",
     body: "Every tool is registered read-only and idempotent. There is no create, update or delete tool and no general request tool, so a ClickUp Super Agent has nothing it could change.",
   },
   {
-    icon: Ban,
     title: "GET-only, allowlisted paths",
     body: "The upstream client has one public method, get(), and a fixed list of Connecteam and ROLLER paths. A guard under it throws on any other method or host.",
   },
   {
-    icon: EyeOff,
     title: "Contact, bank, card and medical details removed",
     body: "Tools copy named fields only. Phone numbers, emails, addresses, birth dates, bank, card, tax file and Medicare numbers and medical guest flags never leave the server.",
   },
   {
-    icon: Wallet,
     title: "Pay rates as department averages",
     body: "get_pay_rates never returns one person's rate. Staff names, hours and labour totals are returned, and on a day one person worked alone they can imply a rate, so choose who in ClickUp can use the connection.",
   },
   {
-    icon: KeyRound,
     title: "Secrets stay in your Cloudflare account",
     body: "Bearer tokens and API keys are Worker secrets your team sets. Logs carry tool names, timings and a token hash, never data.",
   },
@@ -139,8 +134,7 @@ export default async function Home() {
 
       <section aria-labelledby="ask">
         <div className="max-w-3xl">
-          <h2 id="ask" className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <MessageSquareText className="size-5 text-primary" aria-hidden />
+          <h2 id="ask" className="text-xl font-semibold tracking-tight">
             Ask it in ClickUp
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -221,15 +215,10 @@ export default async function Home() {
             What keeps it read-only, and what it shares
           </h2>
           <ul className="mt-4 space-y-4">
-            {GUARANTEES.map(({ icon: Icon, title, body }) => (
-              <li key={title} className="flex gap-3">
-                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-success-soft text-success">
-                  <Icon className="size-4" aria-hidden />
-                </span>
-                <div>
-                  <p className="font-medium">{title}</p>
-                  <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{body}</p>
-                </div>
+            {GUARANTEES.map(({ title, body }) => (
+              <li key={title}>
+                <p className="font-medium">{title}</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{body}</p>
               </li>
             ))}
           </ul>

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { ShieldCheck, Users } from "lucide-react";
 import { Breakable } from "@/components/breakable";
 import { CodeBlock } from "@/components/code-block";
 import { PageIntro } from "@/components/page-intro";
@@ -114,17 +113,13 @@ export default function HowItWorksPage() {
 
       <section aria-labelledby="answer" className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="rounded-2xl border border-primary/30 bg-accent/50 p-5 sm:p-6">
-          <h2 id="answer" className="flex items-center gap-2 font-semibold text-accent-foreground">
-            <ShieldCheck className="size-5" aria-hidden />
+          <h2 id="answer" className="font-semibold text-accent-foreground">
             How it cannot modify or leak your data, in three sentences
           </h2>
           <p className="mt-3 text-[15px] leading-relaxed text-pretty">{SHORT_ANSWER.join(" ")}</p>
         </div>
         <div className="rounded-2xl border bg-card p-5 sm:p-6">
-          <h2 className="flex items-center gap-2 font-semibold">
-            <Users className="size-5 text-primary" aria-hidden />
-            What it does share
-          </h2>
+          <h2 className="font-semibold">What it does share</h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground text-pretty">
             Staff names, rostered and clocked times, hours, labour totals and pay as department averages. That is what the questions
             need, and on a day one person worked a department alone, labour cost and hours together imply their rate. So who can use

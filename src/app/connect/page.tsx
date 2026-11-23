@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EyeOff, FlaskConical, GitBranch, KeyRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { Breakable } from "@/components/breakable";
 import { CodeBlock } from "@/components/code-block";
@@ -23,14 +22,12 @@ function ValueChip({ value, name }: { value: string; name: string }) {
   );
 }
 
-const ACCOUNT_STEPS: Array<{ icon: typeof GitBranch; title: string; body: ReactNode }> = [
+const ACCOUNT_STEPS: Array<{ title: string; body: ReactNode }> = [
   {
-    icon: GitBranch,
     title: "Your private repo, your Cloudflare account",
     body: "The code lives in your GitHub repository and deploys from it, through Workers Builds or a deploy token you control.",
   },
   {
-    icon: KeyRound,
     title: "Your team enters the keys",
     body: (
       <>
@@ -40,7 +37,6 @@ const ACCOUNT_STEPS: Array<{ icon: typeof GitBranch; title: string; body: ReactN
     ),
   },
   {
-    icon: FlaskConical,
     title: "Built against the mocks first",
     body: (
       <>
@@ -50,7 +46,6 @@ const ACCOUNT_STEPS: Array<{ icon: typeof GitBranch; title: string; body: ReactN
     ),
   },
   {
-    icon: EyeOff,
     title: "Nothing of yours is published",
     body: "This public demo uses only public API docs and fictional data. Your code and data stay private, and the code is yours.",
   },
@@ -221,12 +216,9 @@ const result = await client.callTool({
           The real build happens in your Cloudflare account and private GitHub repository, and your team keeps the API credentials.
         </p>
         <ol className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {ACCOUNT_STEPS.map(({ icon: Icon, title, body }) => (
+          {ACCOUNT_STEPS.map(({ title, body }) => (
             <li key={title} className="rounded-xl border bg-card p-4">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-success-soft text-success">
-                <Icon className="size-4" aria-hidden />
-              </span>
-              <p className="mt-3 font-medium">{title}</p>
+              <p className="font-medium">{title}</p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{body}</p>
             </li>
           ))}
