@@ -97,5 +97,10 @@ log();
 
 await client.close();
 log("Session closed.");
+log();
+log("Notes");
+log("  - Every response is plain JSON: the server runs the Streamable HTTP transport statelessly.");
+log("  - The SDK also tries GET /mcp to open an optional server-to-client stream; this server has none");
+log("    and answers 405, which the MCP spec allows. That request can land between the calls above.");
 
 if (out) writeFileSync(out, `${lines.join("\n")}\n`);
