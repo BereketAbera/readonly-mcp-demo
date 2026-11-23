@@ -93,20 +93,32 @@ export class ReadOnlyClient {
   async get<T>(path: string, query: Record<string, QueryValue> = {}): Promise<T> {
     const rule = matchRule(path, this.options.rules);
     if (!rule) {
-      throw new UpstreamPolicyError(`${API_LABEL[this.options.api]}: path is not on the read-only allowlist`);
+      const api = API_LABEL[this.options.api];
+      throw new UpstreamPolicyError(`${api}: path is not on the read-only allowlist`);
     }
     const url = new URL(this.options.baseUrl.replace(/\/$/, "") + path);
-    if (url.origin !== this.origin) throw new UpstreamPolicyError("Upstream origin mismatch");
+    if (url.origin !== this.origin) {
+      throw new UpstreamPolicyError("Upstream origin mismatch");
+    }
     for (const [key, value] of Object.entries(query)) {
       if (value === undefined) continue;
-      for (const item of Array.isArray(value) ? value : [value]) url.searchParams.append(key, String(item));
+      for (const item of Array.isArray(value) ? value : [value]) {
+        url.searchParams.append(key, String(item));
+      }
     }
     return this.send<T>("GET", url, rule, true);
   }
 
-  private async send<T>(method: "GET", url: URL, rule: PathRule, retryOn401: boolean): Promise<T> {
+  private async send<T>(
+    method: "GET",
+    url: URL,
+    rule: PathRule,
+    retryOn401: boolean,
+  ): Promise<T> {
     // Types can be bypassed at runtime; this check cannot.
-    if (method !== "GET") throw new UpstreamPolicyError(`Blocked ${String(method)}: upstream access is read-only`);
+    if (method !== "GET") {
+      throw new UpstreamPolicyError(`Blocked ${String(method)}: upstream access is read-only`);
+    }
     await this.throttle();
     const token = await this.options.tokens.getToken();
     const response = await this.options.fetch(url, {
@@ -121,10 +133,11 @@ export class ReadOnlyClient {
       return this.send<T>(method, url, rule, false);
     }
     if (!response.ok) {
+      const api = API_LABEL[this.options.api];
       throw new UpstreamHttpError(
         this.options.api,
         response.status,
-        `${API_LABEL[this.options.api]} returned HTTP ${response.status} for "${rule.name}"`,
+        `${api} returned HTTP ${response.status} for "${rule.name}"`,
       );
     }
     return (await response.json()) as T;
@@ -157,11 +170,14 @@ export function readOnlyFetch(inner: FetchLike, policy: FetchPolicy): FetchLike 
     const request = new Request(input, init);
     const url = new URL(request.url);
     const target = `${url.origin}${url.pathname}`;
-    if (request.method === "POST" && policy.tokenUrls.includes(target) && url.search === "") {
+    const isTokenRequest = policy.tokenUrls.includes(target) && url.search === "";
+    if (request.method === "POST" && isTokenRequest) {
       return inner(request);
     }
     if (request.method !== "GET") {
-      throw new UpstreamPolicyError(`Blocked ${request.method} ${target}: upstream access is read-only`);
+      throw new UpstreamPolicyError(
+        `Blocked ${request.method} ${target}: upstream access is read-only`,
+      );
     }
     if (!policy.apiOrigins.includes(url.origin)) {
       throw new UpstreamPolicyError(`Blocked request to unexpected host ${url.host}`);

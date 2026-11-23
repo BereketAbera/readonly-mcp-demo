@@ -51,7 +51,8 @@ export async function verifyBearer(
     // Compare against every token so timing does not reveal which one matched.
     if (timingSafeEqual(presented, token.digest) && !found) found = token;
   }
-  return found ? { ok: true, tokenId: found.id, kind: found.kind } : { ok: false, reason: "invalid" };
+  if (!found) return { ok: false, reason: "invalid" };
+  return { ok: true, tokenId: found.id, kind: found.kind };
 }
 // #endregion constant-time
 

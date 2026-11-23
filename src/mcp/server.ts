@@ -70,7 +70,10 @@ export const READ_ONLY_ANNOTATIONS = {
   openWorldHint: false,
 } as const;
 
-export function createMcpServer(ctx: ToolContext, options: { mode: UpstreamMode; tokenId?: string }): McpServer {
+export function createMcpServer(
+  ctx: ToolContext,
+  options: { mode: UpstreamMode; tokenId?: string },
+): McpServer {
   const server = new McpServer(SERVER_INFO, {
     capabilities: { tools: { listChanged: false } },
     instructions: serverInstructions(options.mode, ctx.timezone),

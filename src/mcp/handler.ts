@@ -41,6 +41,22 @@ function jsonRpcError(status: number, code: number, message: string, headers: Re
   });
 }
 
+/**
+ * Browser requests must come from this site (or a configured origin). The host
+ * is compared, not the scheme, because TLS often ends at a proxy in front of us.
+ */
+function isAllowedOrigin(origin: string, request: Request, url: URL, allowed: readonly string[]): boolean {
+  if (allowed.includes(origin)) return true;
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  const hosts = [url.host, request.headers.get("host"), request.headers.get("x-forwarded-host")];
+  return hosts.some((h) => h !== null && h.toLowerCase() === originHost.toLowerCase());
+}
+
 export async function buildRuntime(env: EnvSource, options: HandlerOptions = {}): Promise<Runtime> {
   const config = loadConfig(env);
   const tokens = await Promise.all([
@@ -67,7 +83,7 @@ export async function handleWithRuntime(request: Request, rt: Runtime): Promise<
 
   // #region request-gate
   const origin = request.headers.get("origin");
-  if (origin && origin !== url.origin && !rt.config.allowedOrigins.includes(origin)) {
+  if (origin && !isAllowedOrigin(origin, request, url, rt.config.allowedOrigins)) {
     logEvent("origin_rejected", { method: request.method });
     return jsonRpcError(403, -32000, "Origin not allowed");
   }
@@ -75,18 +91,24 @@ export async function handleWithRuntime(request: Request, rt: Runtime): Promise<
   const auth = await verifyBearer(request.headers.get("authorization"), rt.tokens);
   if (!auth.ok) {
     logEvent("auth_rejected", { reason: auth.reason, method: request.method });
-    return jsonRpcError(401, -32001, "Missing or invalid bearer token", { "www-authenticate": 'Bearer realm="mcp"' });
+    return jsonRpcError(401, -32001, "Missing or invalid bearer token", {
+      "www-authenticate": 'Bearer realm="mcp"',
+    });
   }
 
   if (request.method !== "POST") {
     // Stateless server: no SSE stream to open (GET) and no session to end (DELETE).
-    return jsonRpcError(405, -32000, "Method not allowed. Send MCP messages with POST.", { allow: "POST" });
+    return jsonRpcError(405, -32000, "Method not allowed. Send MCP messages with POST.", {
+      allow: "POST",
+    });
   }
 
   const decision = await rt.limiter.check(auth.tokenId);
   if (!decision.allowed) {
     logEvent("rate_limited", { token: auth.tokenId });
-    return jsonRpcError(429, -32000, "Rate limit exceeded for this token", { "retry-after": String(decision.retryAfter) });
+    return jsonRpcError(429, -32000, "Rate limit exceeded for this token", {
+      "retry-after": String(decision.retryAfter),
+    });
   }
   // #endregion request-gate
 
