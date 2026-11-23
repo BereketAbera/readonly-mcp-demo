@@ -145,7 +145,7 @@ Worker logs (`wrangler tail` or Workers Logs) show one JSON line per request and
   isolate or Vercel instance can answer any request. GET and DELETE return 405.
 - **Per-process caches only.** OAuth tokens and the in-memory rate-limit window live in the process (Worker
   isolate or function instance). On Workers the Rate Limiting binding is shared per location.
-- **No database.** The mocks generate their fixtures deterministically in memory on first use. The UI pages are
+- **No database.** The mocks build their fixtures deterministically in memory on first use. The UI pages are
   rendered at build time from the server's own `tools/list` and `tools/call` output over an in-memory transport.
   The run-a-tool form calls the live `/mcp` endpoint from the browser.
 

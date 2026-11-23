@@ -158,7 +158,7 @@ function iso(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toISOString().replace(".000Z", "Z");
 }
 
-function generate(): Fixtures {
+function buildFixtures(): Fixtures {
   const rnd = new Random(20261123);
   const tz = VENUE_TIMEZONE;
   const midnight = new Map<string, number>();
@@ -677,8 +677,8 @@ function generate(): Fixtures {
 
 let cached: Fixtures | undefined;
 
-/** Fixtures are generated once per process and never mutated. */
+/** Fixtures are built once per process and never mutated. */
 export function getFixtures(): Fixtures {
-  cached ??= generate();
+  cached ??= buildFixtures();
   return cached;
 }
