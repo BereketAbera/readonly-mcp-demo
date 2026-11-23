@@ -5,27 +5,29 @@
   "scripts": {
     "dev": "next dev --turbopack --port 3202",
     "build": "next build",
-    "start": "next start --port 3202",
+    "start": "next start --port 3202 --hostname 127.0.0.1",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run --project unit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tests/workers/tsconfig.json",
+    "test": "vitest run --project unit --project integration --project workers",
     "test:workers": "vitest run --project workers",
     "test:integration": "vitest run --project integration",
-    "test:all": "vitest run",
     "test:e2e": "playwright test",
-    "worker:dev": "wrangler dev --port 8787"
+    "worker:dev": "wrangler dev --port 8787",
+    "test:unit": "vitest run --project unit",
+    "screenshots": "SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts --project=desktop",
+    "session": "node scripts/client-session.mjs"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.6",
     "@modelcontextprotocol/sdk": "1.32.2",
     "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
+    "cn": "^0.5.2",
     "lucide-react": "^1.78.0",
     "next": "15.5.29",
     "radix-ui": "^1.8.1",
     "react": "19.1.10",
     "react-dom": "19.1.10",
-    "tailwind-merge": "^3.7.1",
+    "shadcn": "^4.23.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
