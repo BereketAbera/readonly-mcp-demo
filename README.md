@@ -119,7 +119,7 @@ pnpm build && pnpm test:e2e # Playwright: desktop 1440, phone 390 and narrow 320
   input bounds, redaction of keys and free text, custom-field rules, every tool's output shape (array aggregates that add
   up, pay as averages only, notes and medical flags hidden, empty-range notes), the HTTP gate (origin list, DNS
   rebinding, batches, body size, per-visitor limits), configuration rules, the GET-only client and fetch guard, OAuth
-  token caching and the mock APIs.
+  token caching, the mock APIs, and the labour figure on the social preview against the demo data.
 - **Integration** (`tests/integration`): the official MCP SDK client over real HTTP. Lists tools, calls every tool,
   proves no write-capable tool exists, checks results carry no contact or medical details and are marked as mock data,
   checks 401, 405, 403, 400 for batches and 429. Set `MCP_TEST_URL` (and `MCP_TEST_TOKEN`) to run it against a
