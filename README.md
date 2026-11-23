@@ -250,6 +250,7 @@ src/
   core/                     Config, auth, rate limit, redaction, dates, logging
   app/, components/, lib/   Demo UI
 scripts/                    Client session transcript and counts-only smoke test
+design/                     Script, Inkscape build and font for the mark, icons, social preview and diagram (DESIGN-NOTES.md)
 tests/                      Vitest: unit, integration, workers
 e2e/                        Playwright
 ```
