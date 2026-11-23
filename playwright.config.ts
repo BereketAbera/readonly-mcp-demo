@@ -13,6 +13,8 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
     { name: "phone", use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 } } },
+    // Small phones: only the layout checks (every page, no sideways scroll).
+    { name: "narrow", grep: /no horizontal scroll/, use: { ...devices["Pixel 7"], viewport: { width: 320, height: 640 } } },
   ],
   // Locally, run against a production build on the assigned port (pnpm build first).
   webServer: external
