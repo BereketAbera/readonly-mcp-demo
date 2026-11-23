@@ -132,6 +132,27 @@ export default async function Home() {
 
       <MockNotice />
 
+      {/* From 768 px the text sits beside the tall drawing; from 1152 px the wide drawing shows at its drawn size. */}
+      <section
+        aria-labelledby="path"
+        className="md:grid md:grid-cols-[1fr_25rem] md:grid-rows-[auto_auto_1fr] md:items-start md:gap-x-8 min-[72rem]:block"
+      >
+        <h2 id="path" className="text-xl font-semibold tracking-tight md:col-start-1">
+          One-way data path
+        </h2>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground text-pretty md:col-start-1">
+          Data can only travel one way, from Connecteam and ROLLER to ClickUp. Writes and personal details stop inside the server.
+        </p>
+        <OneWayPath className="mt-5 md:col-start-2 md:row-[1/span_3] md:mt-0 min-[72rem]:mt-5" />
+        <p className="mt-4 text-sm text-muted-foreground md:col-start-1">
+          The numbers match the nine checks on{" "}
+          <Link href="/how-it-works" className="font-medium text-primary underline underline-offset-4">
+            How it works
+          </Link>
+          .
+        </p>
+      </section>
+
       <section aria-labelledby="ask">
         <div className="max-w-3xl">
           <h2 id="ask" className="text-xl font-semibold tracking-tight">
@@ -189,23 +210,6 @@ export default async function Home() {
           <Link href="/labour-cost" className="font-medium text-primary underline-offset-4 hover:underline">
             See labour cost by day, week and department
           </Link>
-        </p>
-      </section>
-
-      <section aria-labelledby="path">
-        <h2 id="path" className="text-xl font-semibold tracking-tight">
-          One-way data path
-        </h2>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground text-pretty">
-          Data can only travel one way, from Connecteam and ROLLER to ClickUp. Writes and personal details stop inside the server.
-        </p>
-        <OneWayPath className="mt-5" />
-        <p className="mt-4 text-sm text-muted-foreground">
-          The numbers match the nine checks on{" "}
-          <Link href="/how-it-works" className="font-medium text-primary underline underline-offset-4">
-            How it works
-          </Link>
-          .
         </p>
       </section>
 

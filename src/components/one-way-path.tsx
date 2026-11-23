@@ -16,8 +16,13 @@ const SVG_FIT = "[&>svg]:h-auto [&>svg]:w-full [&>svg]:font-sans";
 export function OneWayPath({ className }: { className?: string }) {
   return (
     <figure aria-labelledby="one-way-caption" className={className}>
-      <div aria-hidden className={cn("hidden lg:block", SVG_FIT)} dangerouslySetInnerHTML={{ __html: drawing("wide") }} />
-      <div aria-hidden className={cn("mx-auto max-w-[25rem] lg:hidden", SVG_FIT)} dangerouslySetInnerHTML={{ __html: drawing("tall") }} />
+      {/* The wide drawing is 1104 units across, the content width at 1152 px and up, so it never shows scaled down. */}
+      <div aria-hidden className={cn("hidden min-[72rem]:block", SVG_FIT)} dangerouslySetInnerHTML={{ __html: drawing("wide") }} />
+      <div
+        aria-hidden
+        className={cn("mx-auto max-w-[25rem] min-[72rem]:hidden", SVG_FIT)}
+        dangerouslySetInnerHTML={{ __html: drawing("tall") }}
+      />
       <figcaption id="one-way-caption" className="sr-only">
         Diagram of the one-way data path. Data starts in the Connecteam (AU) and ROLLER APIs, which are mocked in this demo
         (check 9). It passes the GET-only client, which reads a fixed list of paths and whose only other call is the sign-in
