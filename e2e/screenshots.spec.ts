@@ -33,6 +33,24 @@ for (const shot of DESKTOP) {
   });
 }
 
+test("desktop one-way path, the section alone", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const section = page.locator('section[aria-labelledby="path"]');
+  await expect(section.locator("svg").first()).toBeVisible();
+  // The section's box plus a margin of page background, in page coordinates.
+  const box = await section.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + window.scrollX, y: r.top + window.scrollY, width: r.width, height: r.height };
+  });
+  const pad = 24;
+  await page.screenshot({
+    path: path.join(dir, `${PREFIX}-path-desktop.png`),
+    fullPage: true,
+    clip: { x: box.x - pad, y: box.y - pad, width: box.width + 2 * pad, height: box.height + 2 * pad },
+  });
+});
+
 test("phone home, full page", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
