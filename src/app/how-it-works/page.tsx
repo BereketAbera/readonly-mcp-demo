@@ -102,12 +102,17 @@ export default function HowItWorksPage() {
         nothing in the server can send anything but GET to an allowlisted path, and nothing personal leaves it.
       </PageIntro>
 
-      <nav aria-label="On this page" className="flex flex-wrap gap-2">
-        {SECTIONS.map((s) => (
-          <a key={s.id} href={`#${s.id}`} className="rounded-md border bg-card px-2.5 py-1 text-sm text-muted-foreground hover:text-foreground">
-            {s.title.replace(/^\d+\.\s*/, "")}
-          </a>
-        ))}
+      <nav aria-label="On this page" className="rounded-xl border bg-card px-4 py-3">
+        <ol className="grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {SECTIONS.map((s, i) => (
+            <li key={s.id}>
+              <a href={`#${s.id}`} className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+                <span className="mr-1.5 text-xs text-primary tabular">{i + 1}</span>
+                {s.title.replace(/^\d+\.\s*/, "")}
+              </a>
+            </li>
+          ))}
+        </ol>
       </nav>
 
       <div className="space-y-12">

@@ -15,7 +15,7 @@ const DESKTOP = [
   { name: "tools", path: "/tools", run: true },
   { name: "labour", path: "/labour-cost" },
   { name: "how", path: "/how-it-works" },
-  { name: "connect", path: "/connect" },
+  ...(process.env.SCREENSHOT_EXTRAS ? [{ name: "connect", path: "/connect" }] : []),
 ];
 
 for (const shot of DESKTOP) {

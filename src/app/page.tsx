@@ -58,7 +58,7 @@ export default async function Home() {
             <Badge variant="outline" className="bg-card">Streamable HTTP</Badge>
             <Badge variant="outline" className="bg-card">Runs on Cloudflare Workers</Badge>
           </div>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
+          <h1 className="mt-4 text-[2.1rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
             Read-only venue data for a project-management assistant
           </h1>
           <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
