@@ -1,2 +1,7 @@
-# Copy to .dev.vars for `wrangler dev` (git-ignored). In production use `wrangler secret put`.
+# Copy to .dev.vars for `wrangler dev` against the real APIs (git-ignored). Not needed for `wrangler dev --env demo`.
+# In your Cloudflare account these are Worker secrets, set with `wrangler secret put`.
 MCP_BEARER_TOKENS=replace-with-the-output-of-openssl-rand-hex-32
+CONNECTEAM_CLIENT_ID=
+CONNECTEAM_CLIENT_SECRET=
+ROLLER_CLIENT_ID=
+ROLLER_CLIENT_SECRET=

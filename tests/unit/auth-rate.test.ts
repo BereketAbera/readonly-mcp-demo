@@ -72,6 +72,57 @@ describe("configuration from the environment", () => {
   it("validates numbers and time zones", () => {
     expect(() => loadConfig({ RATE_LIMIT_PER_MINUTE: "0" })).toThrow(/RATE_LIMIT_PER_MINUTE/);
     expect(() => loadConfig({ VENUE_TIMEZONE: "Mars/Olympus" })).toThrow(/time zone/);
-    expect(loadConfig({ MCP_PUBLIC_DEMO_TOKEN: "none", MCP_BEARER_TOKENS: "x".repeat(40) }).publicDemoToken).toBeUndefined();
+    expect(loadConfig({ UPSTREAM_MODE: "mock", MCP_PUBLIC_DEMO_TOKEN: "none", MCP_BEARER_TOKENS: "x".repeat(40) }).publicDemoToken).toBeUndefined();
+  });
+});
+
+describe("upstream mode", () => {
+  const creds = { CONNECTEAM_CLIENT_ID: "a", CONNECTEAM_CLIENT_SECRET: "b", ROLLER_CLIENT_ID: "c", ROLLER_CLIENT_SECRET: "d" };
+  const secret = { MCP_BEARER_TOKENS: "s".repeat(64) };
+
+  it("accepts mock or live in any case", () => {
+    expect(loadConfig({ UPSTREAM_MODE: "MOCK" }).mode).toBe("mock");
+    expect(loadConfig({ UPSTREAM_MODE: "Live", ...secret, ...creds }).mode).toBe("live");
+  });
+
+  it("rejects anything else instead of falling back to the fictional data", () => {
+    for (const value of ["production", "prod", "real", "on"]) {
+      expect(() => loadConfig({ UPSTREAM_MODE: value, ...secret, ...creds }), value).toThrow(/must be "mock" or "live"/);
+    }
+  });
+
+  it("requires an explicit mode once credentials or secret tokens are set", () => {
+    expect(() => loadConfig({ ...secret, ...creds })).toThrow(/Set UPSTREAM_MODE/);
+    expect(() => loadConfig({ ...secret })).toThrow(/Set UPSTREAM_MODE/);
+    expect(() => loadConfig({ CONNECTEAM_CLIENT_ID: "a" })).toThrow(/Set UPSTREAM_MODE/);
+  });
+
+  it("refuses mock mode next to real credentials, so the public token never fronts them", () => {
+    expect(() => loadConfig({ UPSTREAM_MODE: "mock", ...secret, ...creds })).toThrow(/refusing to serve fictional data/);
+    expect(loadConfig({ UPSTREAM_MODE: "live", ...secret, ...creds }).publicDemoToken).toBeUndefined();
+  });
+});
+
+describe("data and origin settings", () => {
+  it("reads the data-minimisation switches", () => {
+    const config = loadConfig({ STAFF_EXTRA_FIELDS: "Uniform size, Shirt colour", INCLUDE_TIMESHEET_NOTES: "true" });
+    expect(config.staffExtraFields).toEqual(["Uniform size", "Shirt colour"]);
+    expect(config.includeTimesheetNotes).toBe(true);
+    expect(loadConfig({}).includeTimesheetNotes).toBe(false);
+    expect(() => loadConfig({ INCLUDE_TIMESHEET_NOTES: "sometimes" })).toThrow(/true or false/);
+  });
+
+  it("builds the origin allowlist from ALLOWED_ORIGINS and the platform's own URLs", () => {
+    const config = loadConfig({
+      ALLOWED_ORIGINS: "https://ops.example.com/some/path, https://ops.example.com",
+      VERCEL_PROJECT_PRODUCTION_URL: "readonly-mcp-demo.vercel.app",
+      VERCEL_URL: "readonly-mcp-demo-abc123.vercel.app",
+    });
+    expect(config.allowedOrigins).toEqual([
+      "https://ops.example.com",
+      "https://readonly-mcp-demo.vercel.app",
+      "https://readonly-mcp-demo-abc123.vercel.app",
+    ]);
+    expect(() => loadConfig({ ALLOWED_ORIGINS: "not a url" })).toThrow(/ALLOWED_ORIGINS/);
   });
 });

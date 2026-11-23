@@ -1,17 +1,17 @@
 # Cloudflare Workers configuration for the read-only MCP server.
-# Local check (no Cloudflare login needed): npx wrangler dev
+#
+# Default (your Cloudflare account): live mode, no public token. Your team sets
+# the secrets with `wrangler secret put` (see README) before `wrangler deploy`.
+# Fictional demo data, no login or secrets needed: npx wrangler dev --env demo
 name = "lakeside-readonly-mcp"
 main = "src/worker.ts"
 compatibility_date = "2026-11-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Plain, non-secret settings. Secrets are set with `wrangler secret put` (see README).
 [vars]
-UPSTREAM_MODE = "mock"
+UPSTREAM_MODE = "live"
 VENUE_TIMEZONE = "Australia/Brisbane"
 RATE_LIMIT_PER_MINUTE = "60"
-# Public token for the fictional demo data only. Ignored when UPSTREAM_MODE = "live".
-MCP_PUBLIC_DEMO_TOKEN = "lakeside-demo-readonly"
 
 # Per-token rate limit shared across isolates in a Cloudflare location.
 [[ratelimits]]
@@ -19,5 +19,21 @@ name = "MCP_RATE_LIMITER"
 namespace_id = "4201"
 
   [ratelimits.simple]
+  limit = 60
+  period = 60
+
+# In-memory mocks of both APIs with fictional data. Used by `wrangler dev --env demo` and the workerd tests.
+[env.demo.vars]
+UPSTREAM_MODE = "mock"
+VENUE_TIMEZONE = "Australia/Brisbane"
+RATE_LIMIT_PER_MINUTE = "60"
+# Public token for the fictional data only. The server refuses it unless UPSTREAM_MODE = "mock".
+MCP_PUBLIC_DEMO_TOKEN = "lakeside-demo-readonly"
+
+[[env.demo.ratelimits]]
+name = "MCP_RATE_LIMITER"
+namespace_id = "4202"
+
+  [env.demo.ratelimits.simple]
   limit = 60
   period = 60

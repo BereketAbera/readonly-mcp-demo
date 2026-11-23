@@ -17,8 +17,8 @@ export default defineConfig({
         },
       },
       {
-        // Runs inside workerd, the Cloudflare Workers runtime, using wrangler.toml.
-        plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.toml" } })],
+        // Runs inside workerd, the Cloudflare Workers runtime, using the demo environment in wrangler.toml.
+        plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.toml", environment: "demo" } })],
         test: { name: "workers", include: ["tests/workers/**/*.test.ts"], testTimeout: 60_000 },
       },
     ],

@@ -16,11 +16,16 @@ export interface ServerConfig {
   mode: UpstreamMode;
   timezone: string;
   rateLimitPerMinute: number;
+  /** Exact origins of pages that may call /mcp from a browser (same-origin pages; no CORS is served). */
   allowedOrigins: string[];
   secretTokens: string[];
   /** Accepted only while upstreams are mocked (fictional data). */
   publicDemoToken?: string;
   payRateMinGroupSize: number;
+  /** Connecteam custom fields list_staff may return, besides Department and Employment type. */
+  staffExtraFields: string[];
+  /** Whether get_timesheets returns note text (masked) instead of only `hasNote`. */
+  includeTimesheetNotes: boolean;
   workforce: ApiConfig;
   booking: ApiConfig;
 }
@@ -43,6 +48,8 @@ export const MOCK_CREDENTIALS = {
   booking: { clientId: "mock-booking-client", clientSecret: "mock-booking-secret" },
 } as const;
 
+const REAL_CREDENTIAL_KEYS = ["CONNECTEAM_CLIENT_ID", "CONNECTEAM_CLIENT_SECRET", "ROLLER_CLIENT_ID", "ROLLER_CLIENT_SECRET"];
+
 function str(env: EnvSource, key: string): string | undefined {
   const value = env[key];
   return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
@@ -64,6 +71,13 @@ function int(env: EnvSource, key: string, fallback: number, min: number, max: nu
   return value;
 }
 
+function bool(env: EnvSource, key: string): boolean {
+  const raw = str(env, key)?.toLowerCase();
+  if (raw === undefined || raw === "false" || raw === "0" || raw === "no") return false;
+  if (raw === "true" || raw === "1" || raw === "yes") return true;
+  throw new ConfigError(`${key} must be true or false`);
+}
+
 function isValidTimeZone(tz: string): boolean {
   try {
     new Intl.DateTimeFormat("en-AU", { timeZone: tz });
@@ -78,8 +92,54 @@ function publicDemoToken(env: EnvSource): string | undefined {
   return value.toLowerCase() === "none" ? undefined : value;
 }
 
+// #region upstream-mode
+/**
+ * Mock mode serves fictional data, so it is never a silent fallback: the value
+ * must be exactly mock or live (any case), and real API credentials or secret
+ * bearer tokens require the mode to be set explicitly.
+ */
+export function parseUpstreamMode(env: EnvSource): UpstreamMode {
+  const raw = str(env, "UPSTREAM_MODE");
+  const hasCredentials = REAL_CREDENTIAL_KEYS.some((key) => str(env, key) !== undefined);
+  if (raw === undefined) {
+    if (hasCredentials || str(env, "MCP_BEARER_TOKENS") !== undefined) {
+      throw new ConfigError("Set UPSTREAM_MODE to live (or mock for the fictional demo data)");
+    }
+    return "mock";
+  }
+  const mode = raw.toLowerCase();
+  if (mode !== "mock" && mode !== "live") throw new ConfigError('UPSTREAM_MODE must be "mock" or "live"');
+  if (mode === "mock" && hasCredentials) {
+    throw new ConfigError("API credentials are set but UPSTREAM_MODE is mock; refusing to serve fictional data");
+  }
+  return mode;
+}
+// #endregion upstream-mode
+
+function origin(value: string, key: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("scheme");
+    return url.origin;
+  } catch {
+    throw new ConfigError(`${key} must list origins such as https://example.com`);
+  }
+}
+
+/** Origins the hosting platform says this deployment is served from (Vercel system variables). */
+function platformOrigins(env: EnvSource): string[] {
+  const out: string[] = [];
+  const site = str(env, "NEXT_PUBLIC_SITE_URL");
+  if (site) out.push(origin(site, "NEXT_PUBLIC_SITE_URL"));
+  for (const key of ["VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_URL", "VERCEL_BRANCH_URL"]) {
+    const host = str(env, key);
+    if (host) out.push(origin(`https://${host}`, key));
+  }
+  return out;
+}
+
 export function loadConfig(env: EnvSource): ServerConfig {
-  const mode: UpstreamMode = str(env, "UPSTREAM_MODE") === "live" ? "live" : "mock";
+  const mode = parseUpstreamMode(env);
   const timezone = str(env, "VENUE_TIMEZONE") ?? "Australia/Brisbane";
   if (!isValidTimeZone(timezone)) throw new ConfigError("VENUE_TIMEZONE is not a valid IANA time zone");
 
@@ -98,10 +158,12 @@ export function loadConfig(env: EnvSource): ServerConfig {
     mode,
     timezone,
     rateLimitPerMinute: int(env, "RATE_LIMIT_PER_MINUTE", 60, 1, 10_000),
-    allowedOrigins: list(env, "ALLOWED_ORIGINS"),
+    allowedOrigins: [...new Set([...list(env, "ALLOWED_ORIGINS").map((o) => origin(o, "ALLOWED_ORIGINS")), ...platformOrigins(env)])],
     secretTokens,
     publicDemoToken: mode === "mock" ? publicDemoToken(env) : undefined,
     payRateMinGroupSize: int(env, "PAY_RATE_MIN_GROUP", 3, 1, 50),
+    staffExtraFields: list(env, "STAFF_EXTRA_FIELDS"),
+    includeTimesheetNotes: bool(env, "INCLUDE_TIMESHEET_NOTES"),
     workforce: {
       baseUrl: workforceBase,
       tokenUrl: str(env, "CONNECTEAM_TOKEN_URL") ?? `${workforceBase}/oauth/v1/token`,
