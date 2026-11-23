@@ -1,0 +1,10 @@
+.next
+.wrangler
+node_modules
+test-results
+playwright-report
+blob-report
+.dev.vars
+.env
+.env.local
+.env.*.local

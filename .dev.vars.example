@@ -1,0 +1,2 @@
+# Copy to .dev.vars for `wrangler dev` (git-ignored). In production use `wrangler secret put`.
+MCP_BEARER_TOKENS=replace-with-the-output-of-openssl-rand-hex-32
