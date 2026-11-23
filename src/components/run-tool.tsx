@@ -195,7 +195,8 @@ export function RunTool({ tools, token, endpoint = "/mcp" }: { tools: RunnableTo
     const { top } = el.getBoundingClientRect();
     if (top >= 0 && top < window.innerHeight - 200) return;
     const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ block: "start", behavior: smooth ? "smooth" : "auto" });
+    // "nearest" keeps the Run button and status line in view above a result that fits.
+    el.scrollIntoView({ block: "nearest", behavior: smooth ? "smooth" : "auto" });
   }, [outcome]);
 
   const args = useMemo(() => {
