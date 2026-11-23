@@ -29,7 +29,7 @@ because that is what the questions need. `get_pay_rates` never returns one perso
 a department alone, `labour_cost_percent` and `get_timesheets` together imply that person's rate. So who can use the
 connection in ClickUp decides who sees this data (see the decisions below).
 
-## What the demo proves
+## What the demo shows
 
 - **Built for ClickUp's AI.** ClickUp adds external MCP servers as Custom MCP connections in the App Center, with a URL
   and an API key or custom header. `/connect` follows ClickUp's help article step by step, including the choice between

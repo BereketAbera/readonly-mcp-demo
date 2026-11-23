@@ -330,7 +330,7 @@ export function RunTool({ tools, token, endpoint = "/mcp" }: { tools: RunnableTo
             >
               {tools.map((t) => (
                 <option key={t.name} value={t.name}>
-                  {t.name} — {t.title}
+                  {t.name} · {t.title}
                 </option>
               ))}
             </select>
