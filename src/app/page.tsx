@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Ban, CalendarRange, EyeOff, KeyRound, ListChecks } from "lucide-react";
+import { ArrowRight, Ban, CalendarRange, Cloud, EyeOff, KeyRound, ListChecks, MessageSquareText, Wallet } from "lucide-react";
 import { Architecture } from "@/components/architecture";
 import { MockNotice } from "@/components/mock-notice";
 import { Stat } from "@/components/stat";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { isWeekend, shortDate } from "@/core/dates";
 import { SEED_END, SEED_START } from "@/mock/seed";
 import { labour, listDemoTools } from "@/lib/demo-client";
-import { money, percent } from "@/lib/format";
+import { hours, money, percent } from "@/lib/format";
+import { exampleQuestions, LAST_WEEK } from "@/lib/questions";
 
 export const dynamic = "force-static";
 
@@ -16,30 +17,37 @@ const GUARANTEES = [
   {
     icon: ListChecks,
     title: "Nine tools, none that write",
-    body: "Every tool is registered read-only and idempotent. There is no create, update or delete tool and no general request tool.",
+    body: "Every tool is registered read-only and idempotent. There is no create, update or delete tool and no general request tool, so a ClickUp Super Agent has nothing it could change.",
   },
   {
     icon: Ban,
     title: "GET-only, allowlisted paths",
-    body: "The upstream client has one public method, get(), and a fixed list of paths. A guard under it throws on any other method.",
+    body: "The upstream client has one public method, get(), and a fixed list of Connecteam and ROLLER paths. A guard under it throws on any other method or host.",
   },
   {
     icon: EyeOff,
-    title: "Personal fields removed",
-    body: "Phone, email, home address, date of birth, bank and card details are dropped from every result. Pay is only shown aggregated.",
+    title: "Contact, bank, card and medical details removed",
+    body: "Tools copy named fields only. Phone numbers, emails, addresses, birth dates, bank, card, tax file and Medicare numbers and medical guest flags never leave the server.",
+  },
+  {
+    icon: Wallet,
+    title: "Pay rates as department averages",
+    body: "get_pay_rates never returns one person's rate. Staff names, hours and labour totals are returned, and on a day one person worked alone they can imply a rate, so choose who in ClickUp can use the connection.",
   },
   {
     icon: KeyRound,
-    title: "Secrets stay in the environment",
-    body: "Bearer tokens and API credentials come from Worker secrets. Logs carry tool names, timings and a token hash, never data.",
+    title: "Secrets stay in your Cloudflare account",
+    body: "Bearer tokens and API keys are Worker secrets your team sets. Logs carry tool names, timings and a token hash, never data.",
   },
 ];
 
 export default async function Home() {
-  const [weekly, daily, { tools }] = await Promise.all([
+  const [weekly, daily, withSuper, { tools }, questions] = await Promise.all([
     labour(SEED_START, SEED_END, "week"),
     labour(SEED_START, SEED_END, "day"),
+    labour(SEED_START, SEED_END, "week", 12),
     listDemoTools(),
+    exampleQuestions(),
   ]);
 
   const split = (weekend: boolean) => {
@@ -53,19 +61,21 @@ export default async function Home() {
     <div className="space-y-14">
       <section className="grid gap-8 lg:grid-cols-[1.15fr_1fr] lg:items-center">
         <div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="bg-card">Remote MCP server</Badge>
-            <Badge variant="outline" className="bg-card">Streamable HTTP</Badge>
-            <Badge variant="outline" className="bg-card">Runs on Cloudflare Workers</Badge>
-          </div>
-          <h1 className="mt-4 text-[2.1rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
-            Read-only venue data for a project-management assistant
+          <p className="text-sm font-medium text-primary">Connecteam + ROLLER → ClickUp AI</p>
+          <h1 className="mt-2 text-[2.1rem] leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
+            Read-only staff, roster and revenue data for ClickUp&apos;s AI
           </h1>
           <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-            A small MCP server that lets an assistant read staff, rosters, timesheets, pay, bookings, products, payments
-            and revenue for <span className="font-medium text-foreground">Lakeside Play Centre (fictional)</span>, and
-            work out labour cost as a share of revenue. It has no way to create, change or delete anything.
+            A remote MCP server with mocked Connecteam (AU) and ROLLER APIs for{" "}
+            <span className="font-medium text-foreground">Lakeside Play Centre</span>, a fictional play centre. It reads staff,
+            rosters, timesheets, pay, bookings, payments and revenue, and works out labour cost as a share of revenue. Nothing
+            can be created, changed or deleted.
           </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Badge variant="outline" className="bg-card">Remote MCP server</Badge>
+            <Badge variant="outline" className="bg-card">Streamable HTTP</Badge>
+            <Badge variant="outline" className="bg-card">Cloudflare Worker build included</Badge>
+          </div>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild size="lg" className="h-10 px-4">
               <Link href="/tools">
@@ -73,9 +83,17 @@ export default async function Home() {
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="h-10 px-4">
-              <Link href="/connect">Connect an MCP client</Link>
+              <Link href="/connect">Add it to ClickUp</Link>
             </Button>
           </div>
+          <p className="mt-4 flex max-w-xl gap-2 text-sm leading-relaxed text-muted-foreground">
+            <Cloud className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              This public copy runs the same handler on Vercel. The Worker entry (
+              <code className="font-mono text-[13px] text-foreground">src/worker.ts</code>) is tested in workerd and deploys with{" "}
+              <code className="font-mono text-[13px] text-foreground">wrangler deploy</code>.
+            </span>
+          </p>
         </div>
 
         <div className="rounded-2xl border bg-card p-5 shadow-sm">
@@ -96,51 +114,81 @@ export default async function Home() {
             </p>
             <p>{"})"}</p>
           </div>
-          <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <div>
               <dt className="text-muted-foreground">Labour cost</dt>
               <dd className="mt-0.5 font-semibold tabular">{money(weekly.totals.labourCost)}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Net revenue</dt>
+              <dt className="text-muted-foreground">Net revenue (ex GST)</dt>
               <dd className="mt-0.5 font-semibold tabular">{money(weekly.totals.netRevenue)}</dd>
             </div>
-            <div>
-              <dt className="text-muted-foreground">Labour %</dt>
-              <dd className="mt-0.5 font-semibold text-accent-foreground tabular">{percent(weekly.totals.labourPercent)}</dd>
+            <div className="col-span-2 flex items-baseline justify-between gap-3 rounded-lg bg-accent/70 px-3 py-2">
+              <dt className="text-accent-foreground">Labour cost % of net revenue</dt>
+              <dd className="text-xl font-semibold text-accent-foreground tabular">{percent(weekly.totals.labourPercent)}</dd>
             </div>
           </dl>
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            Paid hours from timesheets x hourly rates, divided by recognised revenue excluding GST. The result returns
-            these inputs too.
+            Paid hours from timesheets × base hourly rates, divided by recognised revenue excluding GST. The result returns these
+            inputs too.
           </p>
         </div>
       </section>
 
       <MockNotice />
 
+      <section aria-labelledby="ask">
+        <div className="max-w-3xl">
+          <h2 id="ask" className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+            <MessageSquareText className="size-5 text-primary" aria-hidden />
+            Ask it in ClickUp
+          </h2>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            Questions a manager could type into ClickUp Brain or a Super Agent, the tool call each one becomes, and what that call
+            returns from the demo data. &ldquo;Last week&rdquo; is {shortDate(LAST_WEEK.start)} to {shortDate(LAST_WEEK.end)} 2026.
+            ClickUp words its own reply; the figures come from these results.
+          </p>
+        </div>
+        <ol className="mt-4 grid gap-3 md:grid-cols-2">
+          {questions.map((q, i) => (
+            <li key={q.question} className={i === 0 ? "rounded-xl border border-primary/30 bg-card p-4 md:col-span-2" : "rounded-xl border bg-card p-4"}>
+              <p className="font-medium text-pretty">&ldquo;{q.question}&rdquo;</p>
+              <p className="mt-2 font-mono text-[12px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                <span className="text-accent-foreground">{q.tool}</span> {JSON.stringify(q.args).replace(/"(\w+)":/g, "$1: ").replace(/,/g, ", ")}
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-pretty">{q.answer}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
       <section aria-labelledby="numbers">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <h2 id="numbers" className="text-xl font-semibold tracking-tight">
-            Four weeks of seeded data
+            Four weeks of demo data
           </h2>
           <p className="text-sm text-muted-foreground">
             <CalendarRange className="mr-1 inline size-4 align-[-3px]" aria-hidden />
             {shortDate(SEED_START)} to {shortDate(SEED_END)} 2026 · Australia/Brisbane
           </p>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Net revenue (ex GST)" value={money(weekly.totals.netRevenue)} note="Recognised on the visit date" />
-          <Stat label="Labour cost" value={money(weekly.totals.labourCost)} note={`${Math.round(weekly.totals.paidHours).toLocaleString("en-AU")} paid hours, base rates`} />
-          <Stat label="Labour cost / revenue" value={percent(weekly.totals.labourPercent)} note="All four weeks" emphasis />
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Stat
-            label="Weekdays vs weekends"
+            label="Labour cost % of net revenue"
+            value={percent(weekly.totals.labourPercent)}
+            note={`Base wages only. With 12% super: ${percent(withSuper.totals.labourPercent)}`}
+            emphasis
+          />
+          <Stat label="Labour cost" value={money(weekly.totals.labourCost)} note={`${hours(weekly.totals.paidHours)} paid hours at base rates`} />
+          <Stat label="Net revenue (ex GST)" value={money(weekly.totals.netRevenue)} note="Recognised on the visit date" />
+          <Stat
+            label="Weekdays vs weekends (base rates)"
             value={
               <span>
-                {percent(split(false))} <span className="text-base font-normal text-muted-foreground">vs</span> {percent(split(true))}
+                {percent(split(false))} <span className="text-sm font-normal text-muted-foreground">vs</span> {percent(split(true))}
               </span>
             }
-            note="Quiet term-time weekdays carry the most labour per dollar"
+            note="Saturday and Sunday penalty rates would raise the weekend figure"
           />
         </div>
         <p className="mt-3 text-sm">
@@ -155,8 +203,8 @@ export default async function Home() {
           Request path
         </h2>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          The same TypeScript handler serves the Cloudflare Worker and this Next.js deployment. Each request passes the
-          checks in this order before a tool runs.
+          The same TypeScript handler serves the Cloudflare Worker and this Next.js deployment. Each request passes the checks in
+          this order before a tool runs.
         </p>
         <div className="mt-4">
           <Architecture />
@@ -166,7 +214,7 @@ export default async function Home() {
       <section aria-labelledby="tools" className="grid gap-8 lg:grid-cols-[1fr_1.35fr]">
         <div>
           <h2 id="tools" className="text-xl font-semibold tracking-tight">
-            What keeps it read-only
+            What keeps it read-only, and what it shares
           </h2>
           <ul className="mt-4 space-y-4">
             {GUARANTEES.map(({ icon: Icon, title, body }) => (
@@ -187,7 +235,7 @@ export default async function Home() {
             </Link>
           </p>
         </div>
-        <div className="rounded-2xl border bg-card p-5">
+        <div className="self-start rounded-2xl border bg-card p-5">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-semibold">Tools the server lists</h3>
             <span className="text-xs text-muted-foreground">from tools/list</span>

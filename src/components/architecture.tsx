@@ -42,16 +42,16 @@ export function Architecture() {
   return (
     <figure aria-labelledby="arch-title">
       <figcaption id="arch-title" className="sr-only">
-        Request path: an assistant in a project tool calls the MCP endpoint, which checks the origin, bearer token and rate
-        limit, runs one of nine read-only tools, and reads the two mocked upstream APIs through GET-only clients.
+        Request path: ClickUp&apos;s AI calls the MCP endpoint, which checks the origin, bearer token and rate limit, runs one of
+        nine read-only tools, and reads the mocked Connecteam and ROLLER APIs through GET-only clients.
       </figcaption>
-      <div className="grid items-stretch gap-2 lg:grid-cols-[1fr_auto_1.15fr_auto_1.1fr_auto_1.1fr_auto_1.2fr]">
-        <Stage icon={Bot} title="MCP client">
-          An assistant inside a project-management tool, connected over Streamable HTTP.
+      <div className="grid gap-2 lg:grid-cols-[1fr_auto_1.15fr_auto_1.1fr_auto_1.1fr_auto_1.2fr] lg:items-center">
+        <Stage icon={Bot} title="ClickUp AI (MCP client)">
+          ClickUp Brain or a Super Agent, connected over Streamable HTTP with its own bearer token.
         </Stage>
         <Arrow />
         <Stage icon={Lock} title="POST /mcp">
-          Origin check, bearer token compared in constant time, per-token rate limit.
+          Origin check, bearer token compared in constant time, per-token rate limit, one message per request.
         </Stage>
         <Arrow />
         <Stage icon={Wrench} title="9 read-only tools">
@@ -63,11 +63,11 @@ export function Architecture() {
         </Stage>
         <Arrow />
         <div className="grid gap-2">
-          <Stage icon={Database} title="Workforce API" tone="mock">
-            Mock of Connecteam&apos;s AU-region API: staff, shifts, time clock, pay rates.
+          <Stage icon={Database} title="Connecteam API (mocked)" tone="mock">
+            AU region: staff, shifts, time clock, pay rates.
           </Stage>
-          <Stage icon={Database} title="Booking API" tone="mock">
-            Mock of ROLLER&apos;s REST and Reporting APIs, with an endpoint-scoped key.
+          <Stage icon={Database} title="ROLLER API (mocked)" tone="mock">
+            REST and Reporting APIs, with an endpoint-scoped key.
           </Stage>
         </div>
       </div>

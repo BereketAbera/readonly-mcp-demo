@@ -10,8 +10,8 @@ export function MockNotice({ compact = false }: { compact?: boolean }) {
       <p className="leading-relaxed">
         <strong className="font-semibold">Mocked upstreams, fictional data.</strong>{" "}
         {compact
-          ? "The workforce and booking APIs are in-memory mocks shaped like Connecteam's and ROLLER's public API docs."
-          : "The workforce and booking APIs are in-memory mocks that follow the request and response shapes in Connecteam's and ROLLER's public developer docs, including their OAuth client-credentials token endpoints. Nothing here has been run against the real APIs."}
+          ? "Connecteam and ROLLER are in-memory mocks shaped like their public API docs. Every tool result is marked as mock data."
+          : "Connecteam and ROLLER are in-memory mocks that follow the request and response shapes in their public developer docs, including their OAuth client-credentials token endpoints. Nothing here has been run against the real APIs, and every tool result is marked as mock data."}
       </p>
     </aside>
   );
