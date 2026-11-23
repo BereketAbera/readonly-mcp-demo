@@ -293,17 +293,20 @@ def mocked_label(c: Canvas) -> None:
 
 
 def diagram_wide() -> tuple[Canvas, float, float]:
-    """Desktop layout, 1104 wide: the max-w-6xl content width, so 1:1 at 1440."""
+    """Desktop layout, 1104 wide: the max-w-6xl content width, so the page shows it 1:1 from 1152 px up."""
     c = Canvas()
     W = 1104
-    top, ch = 62, 98  # the stage cards
-    mid = top + ch / 2  # the line the data travels along
+    sw, sh, gap = 196, 80, 12  # the two source cards, one above the other
+    s_ys = [30, 30 + sh + gap]
+    # The line the data travels along runs level with the gap between the
+    # sources, so the two inflows bend by the same amount to meet it.
+    mid = s_ys[1] - gap / 2
+    ch = 98  # the stage cards, centred on that line
+    top = mid - ch / 2
     x = {"client": 256, "tools": 500, "gate": 786, "clickup": 958}
     w = {"client": 204, "tools": 246, "gate": 132, "clickup": 146}
 
     mocked_label(c)
-    sw, sh = 196, 80
-    s_ys = [30, 30 + sh + 12]
     for (title, lines), sy in zip(SOURCES, s_ys):
         card(c, 0, sy, sw, sh, title, lines["wide"], "mock")
     # The two inflows meet, as in the mark, then run into the client.
@@ -332,7 +335,7 @@ def diagram_wide() -> tuple[Canvas, float, float]:
         c.stopped(x[key] + w[key] / 2, top + ch, ny - 12)
         heights.append(note(c, x[key], ny, w[key], title, lines["wide"], tone))
     tone, title, lines = NOTES["clickup"]
-    c.line(f"M{num(x['clickup'] + w['clickup'] / 2)} {top + ch}V{ny}", OK)
+    c.line(f"M{num(x['clickup'] + w['clickup'] / 2)} {num(top + ch)}V{num(ny)}", OK)
     heights.append(note(c, x["gate"], ny, W - x["gate"], title, lines["wide"], tone))
     return c, W, ny + max(heights)
 
@@ -371,7 +374,9 @@ def diagram_tall() -> tuple[Canvas, float, float]:
         if key in NOTES:  # a stop hangs to the right of the line
             tone, title, lines = NOTES[key]
             nx, ny = spine + 24, bottom + 40
-            c.stopped(nx + (W - nx) / 2, bottom, ny - 12)
+            # Its red line drops as far in from the right as the data line is
+            # from the left, well clear of ROLLER's arrow above it.
+            c.stopped(W - spine, bottom, ny - 12)
             nxt = ny + note(c, nx, ny, W - nx, title, lines["tall"], tone) + 30
         c.line(f"M{spine} {bottom}V{nxt - 1}", INK)
         c.head(spine, nxt, "down")
