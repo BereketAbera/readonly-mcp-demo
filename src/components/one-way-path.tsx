@@ -25,8 +25,8 @@ export function OneWayPath({ className }: { className?: string }) {
         read-only tools return named fields only, masked again, with dates checked and 31 days at most, so guest names,
         phone, email, address, birth date, bank, card, TFN, Medicare and medical flags are removed there (checks 1, 4 and
         5). Then the gate checks the bearer token, origin list and rate limit (checks 6 and 7). What reaches ClickUp Brain
-        or a Super Agent: staff names, shifts, hours, labour totals, pay as department averages, bookings, payments and
-        revenue.
+        or a Super Agent: staff names, shifts, hours, labour totals, pay as department averages, bookings, products,
+        payments and revenue.
       </figcaption>
     </figure>
   );

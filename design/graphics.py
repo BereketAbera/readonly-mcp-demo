@@ -245,7 +245,8 @@ STAGES = {
         "tall": ["Reads a fixed list of paths. Its only", "other call is the sign-in token request."],
     },
     "tools": {
-        "title": "9 read-only tools",
+        # Counts are spelled out: a number in a dot is always a check on /how-it-works.
+        "title": "Nine read-only tools",
         "checks": [1, 4, 5],
         "wide": ["Named fields only, then", "masked again. Dates checked,", "31 days at most."],
         "tall": ["Named fields only, then masked again.", "Dates checked, 31 days at most."],
@@ -277,8 +278,8 @@ NOTES = {
         "ok",
         "What reaches ClickUp",
         {
-            "wide": ["staff names, shifts, hours, labour totals,", "pay as department averages,", "bookings, payments, revenue"],
-            "tall": ["staff names, shifts, hours, labour", "totals, pay as department averages,", "bookings, payments, revenue"],
+            "wide": ["staff names, shifts, hours, labour totals,", "pay as department averages,", "bookings, products, payments, revenue"],
+            "tall": ["staff names, shifts, hours, labour", "totals, pay as department averages,", "bookings, products, payments, revenue"],
         },
     ),
 }
@@ -286,8 +287,9 @@ ORDER = ["client", "tools", "gate", "clickup"]
 
 
 def mocked_label(c: Canvas) -> None:
-    c.text(0, 13, "MOCKED IN THIS DEMO", 11, MOCK_FG, 600, spacing=0.7)
-    c.markers(146, 9, [9])
+    # The dot leads the label so it reads as check 9, not as a count after it.
+    c.markers(0, 9, [9])
+    c.text(23, 13, "MOCKED IN THIS DEMO", 11, MOCK_FG, 600, spacing=0.7)
 
 
 def diagram_wide() -> tuple[Canvas, float, float]:
