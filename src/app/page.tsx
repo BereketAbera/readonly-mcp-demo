@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Ban, CalendarRange, Cloud, EyeOff, KeyRound, ListChecks, MessageSquareText, Wallet } from "lucide-react";
-import { Architecture } from "@/components/architecture";
 import { MockNotice } from "@/components/mock-notice";
+import { OneWayPath } from "@/components/one-way-path";
 import { Stat } from "@/components/stat";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -200,15 +200,19 @@ export default async function Home() {
 
       <section aria-labelledby="path">
         <h2 id="path" className="text-xl font-semibold tracking-tight">
-          Request path
+          One-way data path
         </h2>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          The same TypeScript handler serves the Cloudflare Worker and this Next.js deployment. Each request passes the checks in
-          this order before a tool runs.
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground text-pretty">
+          Data can only travel one way, from Connecteam and ROLLER to ClickUp. Writes and personal details stop inside the server.
         </p>
-        <div className="mt-4">
-          <Architecture />
-        </div>
+        <OneWayPath className="mt-5" />
+        <p className="mt-4 text-sm text-muted-foreground">
+          The numbers match the nine checks on{" "}
+          <Link href="/how-it-works" className="font-medium text-primary underline underline-offset-4">
+            How it works
+          </Link>
+          .
+        </p>
       </section>
 
       <section aria-labelledby="tools" className="grid gap-8 lg:grid-cols-[1fr_1.35fr]">
