@@ -7,8 +7,14 @@
 /** Largest inclusive range any tool will query in one call. */
 export const MAX_RANGE_DAYS = 31;
 
+/** Earliest and latest dates any tool accepts. */
+export const MIN_DATE = "2000-01-01";
+export const MAX_DATE = "2099-12-31";
+
 const DAY_MS = 86_400_000;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const pad = (n: number, width = 2) => String(n).padStart(width, "0");
 
 export function isValidIsoDate(value: string): boolean {
   if (!ISO_DATE.test(value)) return false;
@@ -21,8 +27,10 @@ function toUtcMs(date: string): number {
   return Date.parse(`${date}T00:00:00Z`);
 }
 
+/** Calendar arithmetic on YYYY-MM-DD strings, built from UTC parts (never by slicing an ISO timestamp). */
 export function addDays(date: string, days: number): string {
-  return new Date(toUtcMs(date) + days * DAY_MS).toISOString().slice(0, 10);
+  const d = new Date(toUtcMs(date) + days * DAY_MS);
+  return `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
 /** Number of calendar days from start to end, counting both ends. */
@@ -30,10 +38,15 @@ export function daysInclusive(start: string, end: string): number {
   return Math.round((toUtcMs(end) - toUtcMs(start)) / DAY_MS) + 1;
 }
 
-export function eachDate(start: string, end: string): string[] {
-  const out: string[] = [];
-  for (let d = start; d <= end; d = addDays(d, 1)) out.push(d);
-  return out;
+/**
+ * Every date from start to end, inclusive. The loop is count-based, so it
+ * always ends, and it refuses ranges longer than `limit` days.
+ */
+export function eachDate(start: string, end: string, limit = MAX_RANGE_DAYS): string[] {
+  const count = daysInclusive(start, end);
+  if (!Number.isFinite(count) || count <= 0) return [];
+  if (count > limit) throw new RangeError(`A range of ${count} days is over the ${limit}-day limit`);
+  return Array.from({ length: count }, (_, i) => addDays(start, i));
 }
 
 /** 0 = Monday … 6 = Sunday. */

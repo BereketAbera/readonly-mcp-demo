@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, daysInclusive, localDate, localTime, MAX_RANGE_DAYS, weekStart, zonedUnix } from "../../src/core/dates";
+import { addDays, daysInclusive, eachDate, localDate, localTime, MAX_RANGE_DAYS, weekStart, zonedUnix } from "../../src/core/dates";
 import { rangeInput } from "../../src/tools/schemas";
 import { TOOLS } from "../../src/tools/catalog";
 
@@ -12,10 +12,27 @@ describe("date range input", () => {
     expect(schema.safeParse({ start: "2026-11-22", end: "2026-11-22" }).success).toBe(true);
   });
 
-  it("rejects ranges over the cap", () => {
+  it("rejects ranges over the cap with a message that reads on its own", () => {
     const result = schema.safeParse({ start: "2026-11-01", end: "2026-12-02" });
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0].message).toBe("Date range is limited to 31 days per call");
+    expect(result.error?.issues[0].message).toBe(
+      "Date range is limited to 31 days per call; 2026-11-01 to 2026-12-02 is 32 days. Split it into smaller ranges.",
+    );
+    // A root-level issue, so the SDK does not append " at end".
+    expect(result.error?.issues[0].path).toEqual([]);
+  });
+
+  it("accepts dates from 2000 to 2099 only", () => {
+    expect(schema.safeParse({ start: "2000-01-01", end: "2000-01-31" }).success).toBe(true);
+    expect(schema.safeParse({ start: "2099-12-01", end: "2099-12-31" }).success).toBe(true);
+    for (const [start, end] of [["1999-12-31", "1999-12-31"], ["2100-01-01", "2100-01-01"], ["9999-12-31", "9999-12-31"]]) {
+      const result = schema.safeParse({ start, end });
+      expect(result.success, start).toBe(false);
+      expect(result.error?.issues[0].message).toBe("Dates must be between 2000-01-01 and 2099-12-31");
+    }
+    const pay = TOOLS.find((t) => t.name === "get_pay_rates")!;
+    expect(pay.input.safeParse({ asOf: "9999-12-31" }).success).toBe(false);
+    expect(pay.input.safeParse({ asOf: "2026-11-20" }).success).toBe(true);
   });
 
   it("rejects an end before the start", () => {
@@ -57,6 +74,21 @@ describe("date helpers", () => {
     expect(daysInclusive("2026-10-26", "2026-11-22")).toBe(28);
     expect(weekStart("2026-11-22")).toBe("2026-11-16");
     expect(weekStart("2026-11-16")).toBe("2026-11-16");
+  });
+
+  it("builds dates from UTC parts, so the year after 9999 is not cut short", () => {
+    // toISOString() gives "+010000-01-01T..." here; slicing it used to return "+010000-01".
+    expect(addDays("9999-12-31", 1)).toBe("10000-01-01");
+  });
+
+  it("iterates dates by count, so every loop ends", () => {
+    expect(eachDate("2026-10-26", "2026-11-22")).toHaveLength(28);
+    expect(eachDate("2026-11-22", "2026-11-22")).toEqual(["2026-11-22"]);
+    expect(eachDate("2026-11-22", "2026-11-21")).toEqual([]);
+    expect(eachDate("not-a-date", "2026-11-22")).toEqual([]);
+    // The case that used to spin forever: one day at the very end of year 9999.
+    expect(eachDate("9999-12-31", "9999-12-31")).toEqual(["9999-12-31"]);
+    expect(() => eachDate("2026-01-01", "2026-03-01")).toThrow(RangeError);
   });
 
   it("converts between venue-local time and Unix seconds, including daylight saving zones", () => {
