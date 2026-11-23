@@ -2,6 +2,12 @@ import { DEFAULT_PUBLIC_DEMO_TOKEN, loadConfig } from "@/core/config";
 
 export const SITE_NAME = "Lakeside read-only MCP";
 
+/** The two upstream APIs by vendor name, as the client knows them. */
+export const API_NAME = { workforce: "Connecteam", booking: "ROLLER" } as const;
+
+/** Dates the demo data covers, for form hints. */
+export const DEMO_RANGE_LABEL = "26 Oct to 22 Nov 2026";
+
 /** The public token for the fictional demo data, shown on the pages on purpose. */
 export function publicDemoToken(): string {
   try {
